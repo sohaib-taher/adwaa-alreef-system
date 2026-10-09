@@ -6,22 +6,17 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 const MENU = [
-  { href: '/dashboard', label: '\u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629', icon: '🏠' },
-  { href: '/dashboard/purchases', label: '\u0627\u0644\u0645\u0634\u062A\u0631\u064A\u0627\u062A', icon: '🛒' },
-  { href: '/dashboard/revenues', label: '\u0627\u0644\u0625\u064A\u0631\u0627\u062F\u0627\u062A', icon: '💰' },
-  { href: '/dashboard/transfers', label: '\u0627\u0644\u062A\u062D\u0648\u064A\u0644\u0627\u062A', icon: '🔄' },
-  { href: '/dashboard/debts', label: '\u0627\u0644\u0645\u062F\u064A\u0648\u0646\u064A\u0627\u062A', icon: '📋' },
-  { href: '/dashboard/reports', label: '\u0627\u0644\u062A\u0642\u0627\u0631\u064A\u0631', icon: '📊' },
-  { href: '/dashboard/branches', label: '\u0627\u0644\u0641\u0631\u0648\u0639', icon: '🏬' },
-  { href: '/dashboard/products', label: '\u0627\u0644\u0623\u0635\u0646\u0627\u0641', icon: '📦' },
-  { href: '/dashboard/users', label: '\u0627\u0644\u0645\u0633\u062A\u062E\u062F\u0645\u0648\u0646', icon: '👥' },
-  { href: '/dashboard/settings', label: '\u0627\u0644\u0625\u0639\u062F\u0627\u062F\u0627\u062A', icon: '⚙️' },
+  { href: '/dashboard', label: 'الرئيسية', icon: '🏠' },
+  { href: '/dashboard/purchases', label: 'المشتريات', icon: '🛒' },
+  { href: '/dashboard/revenues', label: 'الإيرادات', icon: '💰' },
+  { href: '/dashboard/transfers', label: 'التحويلات', icon: '🔄' },
+  { href: '/dashboard/debts', label: 'المديونيات', icon: '📋' },
+  { href: '/dashboard/reports', label: 'التقارير', icon: '📊' },
+  { href: '/dashboard/branches', label: 'الفروع', icon: '🏬' },
+  { href: '/dashboard/products', label: 'الأصناف', icon: '📦' },
+  { href: '/dashboard/users', label: 'المستخدمون', icon: '👥' },
+  { href: '/dashboard/settings', label: 'الإعدادات', icon: '⚙️' },
 ]
-
-const APP_NAME = '\u0627\u0636\u0648\u0627\u0621 \u0627\u0644\u0631\u064A\u0641'
-const APP_SUBTITLE = '\u0646\u0638\u0627\u0645 \u0627\u0644\u0625\u062F\u0627\u0631\u0629'
-const LOGGED_IN = '\u0645\u0633\u062C\u0644 \u0627\u0644\u062F\u062E\u0648\u0644:'
-const LOGOUT = '\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062E\u0631\u0648\u062C'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -86,7 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{APP_NAME}</span>
+            <span style={{ fontWeight: 'bold', fontSize: '16px' }}>اضواء الريف</span>
             <div style={{
               width: '38px',
               height: '38px',
@@ -144,8 +139,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
-              <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{APP_NAME}</div>
-              <div style={{ fontSize: '11px', opacity: 0.7 }}>{APP_SUBTITLE}</div>
+              <div style={{ fontWeight: 'bold', fontSize: '15px' }}>اضواء الريف</div>
+              <div style={{ fontSize: '11px', opacity: 0.7 }}>نظام الإدارة</div>
             </div>
           </div>
         </div>
@@ -179,7 +174,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           borderTop: '1px solid rgba(255,255,255,0.15)',
           background: 'rgba(0,0,0,0.15)',
         }}>
-          <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: '5px' }}>{LOGGED_IN}</div>
+          <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: '5px' }}>مسجل الدخول:</div>
           <div style={{ fontSize: '12px', marginBottom: '10px', wordBreak: 'break-all' }}>
             {email || '...'}
           </div>
@@ -194,7 +189,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             fontSize: '13px',
             fontFamily: 'inherit',
           }}>
-            {LOGOUT}
+            تسجيل الخروج
           </button>
         </div>
       </aside>
