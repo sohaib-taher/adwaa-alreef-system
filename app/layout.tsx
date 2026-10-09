@@ -21,8 +21,21 @@ const MENU = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [email, setEmail] = useState('')
+  const [checking, setChecking] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
 
+  // كشف حجم الشاشة
+  useEffect(() => {
+    const checkSize = () => {
+      setIsDesktop(window.innerWidth >= 1024)
+    }
+    checkSize()
+    window.addEventListener('resize', checkSize)
+    return () => window.removeEventListener('resize', checkSize)
+  }, [])
+
+  // التحقق من تسجيل الدخول
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
@@ -32,10 +45,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return
       }
       setEmail(result.data.user.email || '')
+      setChecking(false)
     }
     load()
   }, [])
 
+  // اقفل القائمة عند التنقل
   useEffect(() => {
     setMenuOpen(false)
   }, [pathname])
@@ -46,72 +61,93 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.href = '/'
   }
 
+  // 🔴 منع عرض أي محتوى قبل التحقق
+  if (checking) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f3f4f6',
+          fontFamily: 'Arial',
+          color: '#059669',
+          fontSize: '18px',
+        }}
+      >
+        جاري التحقق من الدخول...
+      </div>
+    )
+  }
+
+  const showSidebar = isDesktop || menuOpen
+
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Arial' }}>
 
-      {/* الشريط العلوي للجوال */}
-      <header
-        style={{
-          background: '#065f46',
-          color: 'white',
-          padding: '15px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
+      {/* الشريط العلوي — للجوال فقط */}
+      {!isDesktop && (
+        <header
           style={{
-            background: 'rgba(255,255,255,0.15)',
-            border: 'none',
+            background: '#065f46',
             color: 'white',
-            fontSize: '22px',
-            padding: '8px 14px',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
+            padding: '15px 20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
           }}
         >
-          ☰
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontWeight: 'bold', fontSize: '16px' }}>اضواء الريف</span>
-          <div
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
             style={{
-              width: '38px',
-              height: '38px',
-              background: 'white',
-              borderRadius: '10px',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none',
+              color: 'white',
+              fontSize: '22px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
             }}
           >
-            <img
-              src="/logo.png"
-              alt="logo"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
-          </div>
-        </div>
-      </header>
+            ☰
+          </button>
 
-      {/* الخلفية الشفافة عند فتح القائمة */}
-      {menuOpen && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '16px' }}>اضواء الريف</span>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                background: 'white',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <img
+                src="/logo.png"
+                alt="logo"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            </div>
+          </div>
+        </header>
+      )}
+
+      {/* خلفية سوداء شفافة — للجوال فقط */}
+      {!isDesktop && menuOpen && (
         <div
           onClick={() => setMenuOpen(false)}
           style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
+            inset: 0,
             background: 'rgba(0,0,0,0.5)',
             zIndex: 998,
           }}
@@ -133,7 +169,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           flexDirection: 'column',
           zIndex: 999,
           transition: 'transform 0.3s',
-          transform: menuOpen ? 'translateX(0)' : 'translateX(100%)',
+          transform: showSidebar ? 'translateX(0)' : 'translateX(100%)',
         }}
       >
         <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
@@ -233,7 +269,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main
         style={{
           padding: '20px',
-          minHeight: 'calc(100vh - 70px)',
+          minHeight: '100vh',
+          marginRight: isDesktop ? '260px' : '0',
         }}
       >
         {children}
