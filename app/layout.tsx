@@ -34,18 +34,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   useEffect(() => {
-    try {
-      const supabase = createClient()
-      supabase.auth.getSession().then((result) => {
-        if (result.data.session) {
-          setEmail(result.data.session.user.email || '')
-        } else {
-          window.location.href = '/'
-        }
-      })
-    } catch {
-      window.location.href = '/'
-    }
+    const supabase = createClient()
+    supabase.auth.getSession().then((res) => {
+      setEmail(res.data.session?.user.email || '')
+    })
   }, [])
 
   useEffect(() => {
@@ -53,10 +45,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname])
 
   const handleLogout = async () => {
-    try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch {}
+    const supabase = createClient()
+    await supabase.auth.signOut()
     window.location.href = '/'
   }
 
