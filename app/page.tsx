@@ -1,13 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+
+const APP_NAME = '\u0627\u0636\u0648\u0627\u0621 \u0627\u0644\u0631\u064A\u0641'
+const SUBTITLE = '\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644'
+const LABEL_EMAIL = '\u0627\u0644\u0628\u0631\u064A\u062F \u0627\u0644\u0625\u0644\u0643\u062A\u0631\u0648\u0646\u064A'
+const LABEL_PASSWORD = '\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631'
+const BTN_LOGIN = '\u062F\u062E\u0648\u0644'
+const LOADING_TEXT = '\u062C\u0627\u0631\u064A \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644...'
 
 export default function Home() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [checking, setChecking] = useState(true)
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getSession().then((res) => {
+      if (res.data.session) {
+        window.location.href = '/dashboard'
+      } else {
+        setChecking(false)
+      }
+    })
+  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -15,22 +34,35 @@ export default function Home() {
     setMessage('')
 
     const supabase = createClient()
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
     if (error) {
-      setMessage('❌ خطأ: ' + error.message)
+      setMessage(error.message)
       setLoading(false)
       return
     }
 
-    setMessage('✅ تم تسجيل الدخول بنجاح! جاري التوجيه...')
+    window.location.href = '/dashboard'
+  }
 
-    setTimeout(() => {
-      window.location.href = '/dashboard'
-    }, 1000)
+  if (checking) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#10b981',
+        color: 'white',
+        fontSize: '18px',
+        fontFamily: 'Arial',
+      }}>
+        ...
+      </div>
+    )
   }
 
   return (
@@ -40,8 +72,8 @@ export default function Home() {
       alignItems: 'center',
       justifyContent: 'center',
       background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-      fontFamily: 'Arial, sans-serif',
-      padding: '20px'
+      fontFamily: 'Arial',
+      padding: '20px',
     }}>
       <div style={{
         background: 'white',
@@ -49,10 +81,8 @@ export default function Home() {
         borderRadius: '20px',
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
         width: '100%',
-        maxWidth: '420px'
+        maxWidth: '420px',
       }}>
-        {/* الشعار */}
-        {/* الشعار في مربع أبيض */}
         <div style={{
           width: '180px',
           height: '180px',
@@ -64,51 +94,44 @@ export default function Home() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
         }}>
           <img
             src="/logo.png"
-            alt="شعار اضواء الريف"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              display: 'block'
-            }}
+            alt="logo"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
         </div>
 
-        {/* عنوان النظام */}
         <h1 style={{
           textAlign: 'center',
           marginBottom: '8px',
           color: '#059669',
           fontSize: '26px',
-          fontWeight: 'bold'
+          fontWeight: 'bold',
         }}>
-           اضواء الريف
+          {APP_NAME}
         </h1>
 
         <p style={{
           textAlign: 'center',
           color: '#666',
           marginBottom: '30px',
-          fontSize: '15px'
+          fontSize: '15px',
         }}>
-          تسجيل الدخول
+          {SUBTITLE}
         </p>
 
         <form onSubmit={handleLogin}>
-          {/* البريد الإلكتروني */}
           <div style={{ marginBottom: '20px' }}>
             <label style={{
               display: 'block',
               marginBottom: '8px',
               color: '#333',
               fontWeight: 'bold',
-              fontSize: '15px'
+              fontSize: '15px',
             }}>
-              البريد الإلكتروني
+              {LABEL_EMAIL}
             </label>
             <input
               type="email"
@@ -124,22 +147,21 @@ export default function Home() {
                 boxSizing: 'border-box',
                 color: '#111827',
                 background: '#ffffff',
-                outline: 'none'
+                outline: 'none',
               }}
               placeholder="example@email.com"
             />
           </div>
 
-          {/* كلمة المرور */}
           <div style={{ marginBottom: '25px' }}>
             <label style={{
               display: 'block',
               marginBottom: '8px',
               color: '#333',
               fontWeight: 'bold',
-              fontSize: '15px'
+              fontSize: '15px',
             }}>
-              كلمة المرور
+              {LABEL_PASSWORD}
             </label>
             <input
               type="password"
@@ -155,13 +177,12 @@ export default function Home() {
                 boxSizing: 'border-box',
                 color: '#111827',
                 background: '#ffffff',
-                outline: 'none'
+                outline: 'none',
               }}
               placeholder="••••••••"
             />
           </div>
 
-          {/* زر الدخول */}
           <button
             type="submit"
             disabled={loading}
@@ -175,10 +196,10 @@ export default function Home() {
               fontSize: '17px',
               fontWeight: 'bold',
               cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'background 0.3s'
+              fontFamily: 'inherit',
             }}
           >
-            {loading ? 'جاري تسجيل الدخول...' : 'دخول'}
+            {loading ? LOADING_TEXT : BTN_LOGIN}
           </button>
         </form>
 
@@ -188,25 +209,14 @@ export default function Home() {
             marginTop: '20px',
             padding: '12px',
             borderRadius: '8px',
-            background: message.includes('✅') ? '#d1fae5' : '#fee2e2',
-            color: message.includes('✅') ? '#065f46' : '#991b1b',
+            background: '#fee2e2',
+            color: '#991b1b',
             fontSize: '14px',
-            fontWeight: 'bold'
+            fontWeight: 'bold',
           }}>
             {message}
           </p>
         )}
-
-        {/* تذييل الصفحة */}
-        <p style={{
-          textAlign: 'center',
-          color: '#9ca3af',
-          fontSize: '12px',
-          marginTop: '25px',
-          marginBottom: 0
-        }}>
-          © 2026 اضواء الريف - جميع الحقوق محفوظة
-        </p>
       </div>
     </div>
   )
