@@ -35,43 +35,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   useEffect(() => {
-    let mounted = true
-
-    const load = async () => {
+    const checkAuth = async () => {
       const supabase = createClient()
+      const { data } = await supabase.auth.getSession()
 
-      const timeout = setTimeout(() => {
-        if (mounted) {
-          window.location.href = '/'
-        }
-      }, 3000)
-
-      try {
-        const result = await supabase.auth.getUser()
-        clearTimeout(timeout)
-
-        if (!mounted) return
-
-        if (!result.data.user) {
-          window.location.href = '/'
-          return
-        }
-
-        setEmail(result.data.user.email || '')
-        setChecking(false)
-      } catch {
-        clearTimeout(timeout)
-        if (mounted) {
-          window.location.href = '/'
-        }
+      if (!data.session) {
+        window.location.href = '/'
+        return
       }
+
+      setEmail(data.session.user.email || '')
+      setChecking(false)
     }
 
-    load()
-
-    return () => {
-      mounted = false
-    }
+    checkAuth()
   }, [])
 
   useEffect(() => {
