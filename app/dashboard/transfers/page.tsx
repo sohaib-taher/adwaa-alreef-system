@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+const today = new Date().toISOString().slice(0, 10)
+
 export default function TransfersPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -10,9 +12,10 @@ export default function TransfersPage() {
   const [branches, setBranches] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
   const [transfers, setTransfers] = useState<any[]>([])
+  const [companyId, setCompanyId] = useState('')
 
   const [form, setForm] = useState({
-    transfer_date: new Date().toISOString().split('T')[0],
+    transfer_date: today,
     from_branch_id: '',
     to_branch_id: '',
     product_id: '',
@@ -27,29 +30,39 @@ export default function TransfersPage() {
 
   async function loadData() {
     const supabase = createClient()
-    const result = await supabase.auth.getUser()
-    if (!result.data.user) {
+    const userRes = await supabase.auth.getUser()
+    if (!userRes.data.user) {
       window.location.href = '/'
       return
     }
+    const userInfoRes = await supabase
+      .from('users')
+      .select('company_id')
+      .eq('auth_id', userRes.data.user.id)
+      .single()
+    const cid = userInfoRes.data?.company_id || ''
+    setCompanyId(cid)
 
     const br = await supabase
       .from('branches')
       .select('id, name')
       .eq('is_active', true)
+      .eq('company_id', cid)
       .order('name')
 
     const prod = await supabase
       .from('products')
       .select('id, name')
       .eq('is_active', true)
+      .eq('company_id', cid)
       .order('name')
 
     const tr = await supabase
       .from('transfers')
       .select(
-        'id, transfer_date, qty, unit_price, total, notes, products(name), from_branch:branches!transfers_from_branch_id_fkey(name), to_branch:branches!transfers_to_branch_id_fkey(name)'
+        'id, transfer_date, qty, unit_price, total, notes, products(name), from_branch:branches!transfers_from_b059ranch_id_fkey(name), to_branch:branches!transfers_to_branch_id_fkey(name)'
       )
+      .eq('company_id', cid)
       .order('created_at', { ascending: false })
       .limit(20)
 
@@ -63,33 +76,25 @@ export default function TransfersPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-
     if (form.from_branch_id === form.to_branch_id) {
       setMessage('لا يمكن التحويل لنفس الفرع')
       return
     }
-
     setSaving(true)
     setMessage('')
 
     const supabase = createClient()
-    const result = await supabase.auth.getUser()
-    if (!result.data.user) return
+    const userRes = await supabase.auth.getUser()
+    if (!userRes.data.user) return
 
-    const userRes = await supabase
+    const userInfoRes = await supabase
       .from('users')
-      .select('company_id, id')
-      .eq('auth_id', result.data.user.id)
+      .select('id')
+      .eq('auth_id', userRes.data.user.id)
       .single()
 
-    if (!userRes.data) {
-      setMessage('لم يتم العثور على بيانات المستخدم')
-      setSaving(false)
-      return
-    }
-
-    const insert = await supabase.from('transfers').insert({
-      company_id: userRes.data.company_id,
+    const insertRes = await supabase.from('transfers').insert({
+      company_id: companyId,
       from_branch_id: form.from_branch_id,
       to_branch_id: form.to_branch_id,
       product_id: form.product_id || null,
@@ -98,30 +103,24 @@ export default function TransfersPage() {
       unit_price: parseFloat(form.unit_price) || 0,
       total: total,
       notes: form.notes || null,
-      created_by: userRes.data.id,
+      created_by: userInfoRes.data?.id,
     })
 
-    if (insert.error) {
-      setMessage('خطأ: ' + insert.error.message)
+    if (insertRes.error) {
+      setMessage('خطأ: ' + insertRes.error.message)
       setSaving(false)
       return
     }
 
     setMessage('تم حفظ التحويل بنجاح')
-    setForm({
-      ...form,
-      product_id: '',
-      qty: '',
-      unit_price: '',
-      notes: '',
-    })
+    setForm({ ...form, product_id: '', qty: '', unit_price: '', notes: '' })
     await loadData()
     setSaving(false)
   }
 
   if (loading) {
     return (
-      <div style={{ padding: '50px', textAlign: 'center', color: '#059669' }}>
+      <div style={{ padding: '50px', textAlign: 'center', color: '#669' }}>
         جاري التحميل...
       </div>
     )
@@ -159,73 +158,74 @@ export default function TransfersPage() {
               gap: '15px',
             }}
           >
-            <Field label="التاريخ">
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
+                التاريخ
+              </label>
               <input
                 type="date"
                 value={form.transfer_date}
-                onChange={(e) =>
-                  setForm({ ...form, transfer_date: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, transfer_date: e.target.value })}
                 required
                 style={input}
               />
-            </Field>
+            </div>
 
-            <Field label="من فرع">
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
+                من فرع
+              </label>
               <select
                 value={form.from_branch_id}
-                onChange={(e) =>
-                  setForm({ ...form, from_branch_id: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, from_branch_id: e.target.value })}
                 required
                 style={input}
               >
                 <option value="">اختر الفرع</option>
                 {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
-            </Field>
+            </div>
 
-            <Field label="إلى فرع">
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
+                إلى فرع
+              </label>
               <select
                 value={form.to_branch_id}
-                onChange={(e) =>
-                  setForm({ ...form, to_branch_id: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, to_branch_id: e.target.value })}
                 required
                 style={input}
               >
                 <option value="">اختر الفرع</option>
                 {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
-            </Field>
+            </div>
 
-            <Field label="الصنف">
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
+                الصنف
+              </label>
               <select
                 value={form.product_id}
-                onChange={(e) =>
-                  setForm({ ...form, product_id: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, product_id: e.target.value })}
                 required
                 style={input}
               >
                 <option value="">اختر الصنف</option>
                 {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
+                  <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-            </Field>
+            </div>
 
-            <Field label="الكمية">
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
+                الكمية
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -234,43 +234,43 @@ export default function TransfersPage() {
                 required
                 style={input}
               />
-            </Field>
+            </div>
 
-            <Field label="سعر الوحدة">
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
+                سعر الوحدة
+              </label>
               <input
                 type="number"
                 step="0.01"
                 value={form.unit_price}
-                onChange={(e) =>
-                  setForm({ ...form, unit_price: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, unit_price: e.target.value })}
                 style={input}
               />
-            </Field>
+            </div>
 
-            <Field label="الإجمالي">
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
+                الإجمالي
+              </label>
               <input
                 type="text"
                 value={total.toFixed(2)}
                 readOnly
-                style={{
-                  ...input,
-                  background: '#d1fae5',
-                  fontWeight: 'bold',
-                  color: '#065f46',
-                }}
+                style={{ ...input, background: '#d1fae5', fontWeight: 'bold', color: '#065f46' }}
               />
-            </Field>
+            </div>
 
             <div style={{ gridColumn: '1 / -1' }}>
-              <Field label="ملاحظات">
-                <input
-                  type="text"
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  style={input}
-                />
-              </Field>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
+                ملاحظات
+              </label>
+              <input
+                type="text"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                style={input}
+              />
             </div>
           </div>
 
@@ -366,31 +366,6 @@ export default function TransfersPage() {
           </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div>
-      <label
-        style={{
-          display: 'block',
-          marginBottom: '6px',
-          fontSize: '13px',
-          fontWeight: 'bold',
-          color: '#374151',
-        }}
-      >
-        {label}
-      </label>
-      {children}
     </div>
   )
 }
