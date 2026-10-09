@@ -25,7 +25,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
 
-  // كشف حجم الشاشة
   useEffect(() => {
     const checkSize = () => {
       setIsDesktop(window.innerWidth >= 1024)
@@ -35,22 +34,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => window.removeEventListener('resize', checkSize)
   }, [])
 
-  // التحقق من تسجيل الدخول
   useEffect(() => {
+    let mounted = true
+
     const load = async () => {
       const supabase = createClient()
-      const result = await supabase.auth.getUser()
-      if (!result.data.user) {
-        window.location.href = '/'
-        return
+
+      const timeout = setTimeout(() => {
+        if (mounted) {
+          window.location.href = '/'
+        }
+      }, 3000)
+
+      try {
+        const result = await supabase.auth.getUser()
+        clearTimeout(timeout)
+
+        if (!mounted) return
+
+        if (!result.data.user) {
+          window.location.href = '/'
+          return
+        }
+
+        setEmail(result.data.user.email || '')
+        setChecking(false)
+      } catch {
+        clearTimeout(timeout)
+        if (mounted) {
+          window.location.href = '/'
+        }
       }
-      setEmail(result.data.user.email || '')
-      setChecking(false)
     }
+
     load()
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
-  // اقفل القائمة عند التنقل
   useEffect(() => {
     setMenuOpen(false)
   }, [pathname])
@@ -61,7 +84,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.href = '/'
   }
 
-  // 🔴 منع عرض أي محتوى قبل التحقق
   if (checking) {
     return (
       <div
@@ -86,7 +108,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Arial' }}>
 
-      {/* الشريط العلوي — للجوال فقط */}
       {!isDesktop && (
         <header
           style={{
@@ -141,20 +162,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
       )}
 
-      {/* خلفية سوداء شفافة — للجوال فقط */}
       {!isDesktop && menuOpen && (
         <div
           onClick={() => setMenuOpen(false)}
           style={{
             position: 'fixed',
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             background: 'rgba(0,0,0,0.5)',
             zIndex: 998,
           }}
         />
       )}
 
-      {/* القائمة الجانبية */}
       <aside
         style={{
           width: '260px',
@@ -265,7 +287,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* المحتوى */}
       <main
         style={{
           padding: '20px',
