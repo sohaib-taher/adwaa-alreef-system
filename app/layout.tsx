@@ -21,7 +21,6 @@ const MENU = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [email, setEmail] = useState('')
-  const [checking, setChecking] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
 
@@ -35,20 +34,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   useEffect(() => {
-    const checkAuth = async () => {
+    try {
       const supabase = createClient()
-      const { data } = await supabase.auth.getSession()
-
-      if (!data.session) {
-        window.location.href = '/'
-        return
-      }
-
-      setEmail(data.session.user.email || '')
-      setChecking(false)
+      supabase.auth.getSession().then((result) => {
+        if (result.data.session) {
+          setEmail(result.data.session.user.email || '')
+        } else {
+          window.location.href = '/'
+        }
+      })
+    } catch {
+      window.location.href = '/'
     }
-
-    checkAuth()
   }, [])
 
   useEffect(() => {
@@ -56,28 +53,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname])
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch {}
     window.location.href = '/'
-  }
-
-  if (checking) {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#f3f4f6',
-          fontFamily: 'Arial',
-          color: '#059669',
-          fontSize: '18px',
-        }}
-      >
-        جاري التحقق من الدخول...
-      </div>
-    )
   }
 
   const showSidebar = isDesktop || menuOpen
@@ -243,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               wordBreak: 'break-all',
             }}
           >
-            {email}
+            {email || '...'}
           </div>
           <button
             onClick={handleLogout}
