@@ -65,8 +65,9 @@ function SalesMovementContent() {
       })
 
       revenues?.forEach(rev => {
-        const isDakhil = rev.branches?.name.includes('الدخل')
-        const isNasiriya = rev.branches?.name.includes('الناصرية')
+    const branchName = (rev.branches as any)?.name || (rev.branches as any)?.[0]?.name || ''
+    const isDakhil = branchName.includes('الدخل')
+    const isNasiriya = branchName.includes('الناصرية')
 
         if (grouped[rev.revenue_date]) {
           if (isDakhil) {
