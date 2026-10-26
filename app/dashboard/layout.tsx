@@ -31,14 +31,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const [email, setEmail] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [isDesktop, setIsDesktop] = useState(false)
-
-  useEffect(() => {
-    const checkSize = () => setIsDesktop(window.innerWidth >= 1024)
-    checkSize()
-    window.addEventListener('resize', checkSize)
-    return () => window.removeEventListener('resize', checkSize)
-  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -46,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   useEffect(() => {
-    setMenuOpen(false)
+    setMenuOpen(false) // إغلاق القائمة عند التنقل
   }, [pathname])
 
   const handleLogout = async () => {
@@ -55,34 +47,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.href = '/'
   }
 
-  const isSidebarVisible = isDesktop || menuOpen
-
   return (
-    <div dir="rtl" style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Arial' }}>
-      
-      {/* Header للجوال */}
-      {!isDesktop && (
-        <header style={{ background: '#065f46', color: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
-          <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '20px', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer' }}>☰</button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontWeight: 'bold' }}>اضواء الريف</span>
-            <div style={{ width: '35px', height: '35px', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
-              <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            </div>
-          </div>
-        </header>
-      )}
+    <div dir="rtl" className="layout-wrapper">
+      {/* CSS الصافي لإدارة الشاشات */}
+      <style>{`
+        .layout-wrapper { min-height: 100vh; background: #f3f4f6; font-family: Arial; }
+        .mobile-header { display: none; }
+        .sidebar { width: 260px; background: #065f46; color: white; position: fixed; top: 0; bottom: 0; right: 0; overflow-y: auto; z-index: 999; display: flex; flex-direction: column; transition: transform 0.3s ease; }
+        .main-content { padding: 20px; min-height: 100vh; margin-right: 260px; }
+        .overlay { display: none; }
 
-      {!isDesktop && menuOpen && (
-        <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 998 }} />
-      )}
+        @media (max-width: 1023px) {
+          .mobile-header { display: flex; background: #065f46; color: white; padding: 15px 20px; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+          .sidebar { transform: translateX(100%); }
+          .sidebar.open { transform: translateX(0); }
+          .main-content { margin-right: 0; }
+          .overlay.open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; }
+        }
+      `}</style>
+
+      {/* Header للجوال */}
+      <header className="mobile-header">
+        <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '20px', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer' }}>
+          ☰
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontWeight: 'bold' }}>اضواء الريف</span>
+          <div style={{ width: '35px', height: '35px', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
+            <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+        </div>
+      </header>
+
+      {/* الخلفية السوداء للجوال */}
+      <div className={`overlay ${menuOpen ? 'open' : ''}`} onClick={() => setMenuOpen(false)} />
 
       {/* القائمة الجانبية */}
-      <aside style={{
-        width: '260px', background: '#065f46', color: 'white', position: 'fixed',
-        right: isSidebarVisible ? 0 : -280, top: 0, bottom: 0, overflowY: 'auto',
-        display: 'flex', flexDirection: 'column', zIndex: 999, transition: 'right 0.3s'
-      }}>
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '40px', height: '40px', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
             <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -95,7 +96,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <nav style={{ padding: '10px', flex: 1 }}>
           {MENU.map((item) => {
-            const active = pathname === item.href.split('?')[0] // للتعامل مع الروابط التي تحتوي على بارامترات
+            const active = pathname === item.href.split('?')[0]
             return (
               <Link key={item.href} href={item.href} style={{
                 display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 15px',
@@ -113,14 +114,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div style={{ padding: '15px', borderTop: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)' }}>
           <div style={{ fontSize: '11px', opacity: 0.7, marginBottom: '5px' }}>مسجل الدخول:</div>
           <div style={{ fontSize: '12px', marginBottom: '10px', wordBreak: 'break-all' }}>{email}</div>
-          <button onClick={handleLogout} style={{ width: '100%', padding: '8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit' }}>
             تسجيل الخروج
           </button>
         </div>
       </aside>
 
       {/* المحتوى */}
-      <main style={{ padding: '20px', minHeight: '100vh', marginRight: isDesktop ? '260px' : '0' }}>
+      <main className="main-content">
         {children}
       </main>
     </div>
