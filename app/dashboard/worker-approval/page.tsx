@@ -2,10 +2,13 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import * as XLSX from 'xlsx'
 
 const T = {
   title: 'اعتماد استلامات العمال',
   subTitle: 'مراجعة الفروقات والموافقة عليها',
+  print: '🖨️ طباعة التقرير',
+  export: '📥 تصدير Excel',
   date: 'التاريخ',
   branch: 'الفرع',
   item: 'الصنف',
@@ -77,14 +80,42 @@ function WorkerApprovalContent() {
     setProcessingId(null)
   }
 
+  const handleExport = () => {
+    const excelData = approvals.map(row => {
+      const item = row.daily_receipt_items
+      const dateObj = new Date(item?.daily_receipts?.receipt_date)
+      const formattedDate = `${dateObj.getDate()}-${dateObj.getMonth() + 1}-${dateObj.getFullYear()}`
+      const diff = Number(row.sent_qty) - Number(row.actual_received_qty)
+      return {
+        'التاريخ': formattedDate,
+        'الفرع': row.branches?.name,
+        'الصنف': item?.manual_product_name,
+        'المُرسل': row.sent_qty,
+        'المستلم': row.actual_received_qty,
+        'الفرق': diff,
+        'ملاحظات العامل': row.discrepancy_note || '-'
+      }
+    })
+    const ws = XLSX.utils.json_to_sheet(excelData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "فروقات العمال")
+    XLSX.writeFile(wb, `فروقات_العمال_${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
+
   if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>{T.loading}</div>
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', maxWidth: '1000px', margin: '0 auto' }}>
       
-      <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-        <h1 style={{ color: '#065f46', fontSize: '26px', margin: '0 0 10px' }}>{T.title}</h1>
-        <p style={{ color: '#6b7280', fontSize: '15px' }}>{T.subTitle}</p>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div>
+          <h1 style={{ color: '#065f46', fontSize: '26px', margin: '0 0 10px' }}>{T.title}</h1>
+          <p style={{ color: '#6b7280', fontSize: '15px', margin: 0 }}>{T.subTitle}</p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => window.print()} style={btnStyle('#059669')}>{T.print}</button>
+          <button onClick={handleExport} style={btnStyle('#2563eb')}>{T.export}</button>
+        </div>
       </div>
 
       {approvals.length === 0 ? (
@@ -103,7 +134,7 @@ function WorkerApprovalContent() {
                 <th style={thStyle}>{T.received}</th>
                 <th style={thStyle}>{T.diff}</th>
                 <th style={thStyle}>{T.note}</th>
-                <th style={thStyle}>{T.action}</th>
+                <th className="no-print" style={thStyle}>{T.action}</th>
               </tr>
             </thead>
             <tbody>
@@ -125,7 +156,7 @@ function WorkerApprovalContent() {
                       {diff !== 0 ? diff : 'مطابق'}
                     </td>
                     <td style={{...tdStyle, color: '#6b7280'}}>{row.discrepancy_note || '-'}</td>
-                    <td style={tdStyle}>
+                    <td className="no-print" style={tdStyle}>
                       <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
                         <button onClick={() => handleAction(row.id, 'approve')} disabled={processingId === row.id} style={{ padding: '6px 12px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                           {T.approve}
@@ -142,6 +173,15 @@ function WorkerApprovalContent() {
           </table>
         </div>
       )}
+
+      <style jsx global>{`
+        @media print {
+          aside, header, .no-print { display: none !important; }
+          main { margin: 0 !important; padding: 0 !important; }
+          body { background: white !important; }
+          table { font-size: 11px !important; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -152,3 +192,4 @@ export default function WorkerApprovalPage() {
 
 const thStyle: React.CSSProperties = { padding: '12px', fontSize: '13px', fontWeight: 'bold' }
 const tdStyle: React.CSSProperties = { padding: '12px', fontSize: '14px' }
+const btnStyle = (bg: string): React.CSSProperties => ({ padding: '10px 20px', background: bg, color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'inherit' })

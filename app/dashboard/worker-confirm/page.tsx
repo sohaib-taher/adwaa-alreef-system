@@ -2,9 +2,12 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import * as XLSX from 'xlsx'
 
 const T = {
   title: 'تأكيد الاستلام',
+  print: '🖨️ طباعة الكشف',
+  export: '📥 تصدير Excel',
   note: 'استلمتم عدداً غير المكتوب؟ اكتبوا العدد الحقيقي وسبب الفرق أو ما بقي — يصل للإدارة، ولا يتغير الكشف حتى تعتمده.',
   date: 'اليوم',
   branch: 'الفرع',
@@ -89,13 +92,40 @@ function WorkerConfirmContent() {
     setSavingId(null)
   }
 
+  const handleExport = () => {
+    const excelData = allocations.map(row => {
+      const item = row.daily_receipt_items
+      const dateObj = new Date(item?.daily_receipts?.receipt_date)
+      const formattedDate = `${dateObj.getDate()}-${dateObj.getMonth() + 1}-${dateObj.getFullYear()}`
+      return {
+        'التاريخ': formattedDate,
+        'الفرع': row.branches?.name,
+        'الصنف': item?.manual_product_name,
+        'المُرسل': row.sent_qty,
+        'المستلم': row.actual_received_qty || '',
+        'الملاحظات': row.discrepancy_note || ''
+      }
+    })
+    const ws = XLSX.utils.json_to_sheet(excelData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "كشف الاستلام")
+    XLSX.writeFile(wb, `كشف_استلام_${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
+
   if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>{T.loading}</div>
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', maxWidth: '900px', margin: '0 auto' }}>
       
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h1 style={{ color: '#065f46', fontSize: '26px', margin: 0, fontWeight: 'bold' }}>{T.title}</h1>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => window.print()} style={btnStyle('#059669')}>{T.print}</button>
+          <button onClick={handleExport} style={btnStyle('#2563eb')}>{T.export}</button>
+        </div>
+      </div>
+
       <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-        <h1 style={{ color: '#065f46', fontSize: '28px', margin: '0 0 15px', fontWeight: 'bold' }}>{T.title}</h1>
         <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', maxWidth: '600px', margin: '0 auto' }}>
           {T.note}
         </p>
@@ -116,7 +146,7 @@ function WorkerConfirmContent() {
                 <th style={thStyle}>{T.sent}</th>
                 <th style={thStyle}>{T.received}</th>
                 <th style={thStyle}>{T.diff}</th>
-                <th style={thStyle}>{T.action}</th>
+                <th className="no-print" style={thStyle}>{T.action}</th>
               </tr>
             </thead>
             <tbody>
@@ -138,7 +168,7 @@ function WorkerConfirmContent() {
                     <td style={tdStyle}>
                       <input type="text" placeholder="السبب..." value={row.discrepancy_note || ''} onChange={(e) => handleInputChange(row.id, 'discrepancy_note', e.target.value)} style={inputStyle} />
                     </td>
-                    <td style={tdStyle}>
+                    <td className="no-print" style={tdStyle}>
                       <button onClick={() => handleSend(row.id)} disabled={savingId === row.id} style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                         {savingId === row.id ? '...' : T.action}
                       </button>
@@ -154,6 +184,16 @@ function WorkerConfirmContent() {
       <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '13px', marginTop: '30px' }}>
         {T.footer}
       </p>
+
+      <style jsx global>{`
+        @media print {
+          aside, header, .no-print { display: none !important; }
+          main { margin: 0 !important; padding: 0 !important; }
+          body { background: white !important; }
+          input { border: none !important; background: transparent !important; text-align: right !important; }
+          table { font-size: 12px !important; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -165,3 +205,4 @@ export default function WorkerConfirmPage() {
 const thStyle: React.CSSProperties = { padding: '15px', fontSize: '14px', fontWeight: 'bold', color: '#374151' }
 const tdStyle: React.CSSProperties = { padding: '15px', fontSize: '14px' }
 const inputStyle: React.CSSProperties = { width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', textAlign: 'center', boxSizing: 'border-box' }
+const btnStyle = (bg: string): React.CSSProperties => ({ padding: '10px 20px', background: bg, color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'inherit' })
