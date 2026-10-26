@@ -13,7 +13,9 @@ const T = {
   oldValue: 'القيمة القديمة',
   newValue: 'القيمة الجديدة',
   noData: 'لا توجد عمليات مسجلة',
-  loading: 'جاري التحميل...'
+  loading: 'جاري التحميل...',
+  debit: 'مديونية',
+  credit: 'سداد'
 }
 
 function AuditLogsContent() {
@@ -45,14 +47,33 @@ function AuditLogsContent() {
     loadData()
   }, [])
 
-  const formatJSON = (obj: any) => {
-    if (!obj) return '-'
-    // إظهار أهم الحقول فقط لتجنب الزحام
-    const { network_amount, cash_amount, total_sales, expenses, invoices } = obj
-    if (network_amount !== undefined) {
-      return `شبكة: ${network_amount} | كاش: ${cash_amount} | صافي: ${total_sales}`
-    }
-    return JSON.stringify(obj)
+  // دالة تحويل بيانات JSON إلى كلام بشري مفهوم
+  const renderDetails = (data: any) => {
+    if (!data) return <span style={{ color: '#9ca3af' }}>-</span>
+
+    const items = []
+
+    if (data.party_name) items.push(`الشخص: ${data.party_name}`)
+    if (data.amount !== undefined) items.push(`المبلغ: ${data.amount}`)
+    if (data.type) items.push(`النوع: ${data.type === 'debit' ? T.debit : T.credit}`)
+    if (data.description) items.push(`البيان: ${data.description}`)
+    
+    if (data.network_amount !== undefined) items.push(`الشبكة: ${data.network_amount}`)
+    if (data.cash_amount !== undefined) items.push(`الكاش: ${data.cash_amount}`)
+    if (data.expenses !== undefined) items.push(`المصروفات: ${data.expenses}`)
+    if (data.invoices !== undefined) items.push(`الفواتير: ${data.invoices}`)
+    if (data.total_sales !== undefined) items.push(`الصافي: ${data.total_sales}`)
+
+    if (data.debt_date) items.push(`التاريخ: ${data.debt_date}`)
+    if (data.revenue_date) items.push(`التاريخ: ${data.revenue_date}`)
+
+    if (items.length === 0) return <span style={{ color: '#9ca3af' }}>تفاصيل أخرى</span>
+
+    return (
+      <ul style={{ margin: 0, padding: '0 15px', listStyleType: 'disc', fontSize: '12px', color: '#374151', textAlign: 'right' }}>
+        {items.map((item, idx) => <li key={idx} style={{ marginBottom: '3px' }}>{item}</li>)}
+      </ul>
+    )
   }
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>{T.loading}</div>
@@ -88,13 +109,13 @@ function AuditLogsContent() {
 
                 return (
                   <tr key={log.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={tdStyle}>{formattedDate}</td>
+                    <td style={{...tdStyle, whiteSpace: 'nowrap'}}>{formattedDate}</td>
                     <td style={{...tdStyle, fontWeight: 'bold', color: '#065f46'}}>{userName}</td>
-                    <td style={{...tdStyle, color: log.action.includes('حذف') ? '#dc2626' : '#2563eb', fontWeight: 'bold'}}>
+                    <td style={{...tdStyle, color: log.action.includes('حذف') ? '#dc2626' : log.action.includes('تعديل') ? '#f59e0b' : '#2563eb', fontWeight: 'bold', whiteSpace: 'nowrap'}}>
                       {log.action}
                     </td>
-                    <td style={{...tdStyle, color: '#6b7280', fontSize: '11px'}}>{formatJSON(log.old_values)}</td>
-                    <td style={{...tdStyle, color: '#059669', fontSize: '11px'}}>{formatJSON(log.new_values)}</td>
+                    <td style={tdStyle}>{renderDetails(log.old_values)}</td>
+                    <td style={tdStyle}>{renderDetails(log.new_values)}</td>
                   </tr>
                 )
               })}
@@ -111,4 +132,4 @@ export default function AuditLogsPage() {
 }
 
 const thStyle: React.CSSProperties = { padding: '12px', fontWeight: 'bold' }
-const tdStyle: React.CSSProperties = { padding: '12px', textAlign: 'center' }
+const tdStyle: React.CSSProperties = { padding: '12px', textAlign: 'center', verticalAlign: 'top' }
