@@ -63,21 +63,16 @@ function TransfersContent() {
     if (!userData) return
     setCompanyId(userData.company_id)
 
-    const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true).eq('company_id', userData.company_id).order('name')
+    const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true).eq('company_id', userData.company_id)
     setBranches(br || [])
 
-    const { data: prod } = await supabase.from('products').select('id, name').eq('is_active', true).eq('company_id', userData.company_id).order('name')
+    const { data: prod } = await supabase.from('products').select('id, name').eq('is_active', true).eq('company_id', userData.company_id)
     setProducts(prod || [])
 
-    // جلب التحويلات مع أسماء الفروع (باستخدام Foreign Keys المحددة)
+    // جلب البيانات بدون تعقيدات الـ Joins
     const { data: tr } = await supabase
       .from('transfers')
-      .select(`
-        id, transfer_date, qty, unit_price, total, notes, from_branch_id, to_branch_id, product_id,
-        from_branch:branches!transfers_from_branch_id_fkey(name),
-        to_branch:branches!transfers_to_branch_id_fkey(name),
-        products(name)
-      `)
+      .select('*')
       .eq('company_id', userData.company_id)
       .order('created_at', { ascending: false })
       .limit(20)
@@ -119,12 +114,12 @@ function TransfersContent() {
       })
       setMessage(T.updateSuccess)
     } else {
-      const { data: insertedData, error } = await supabase.from('transfers').insert(record).select()
+      const { error } = await supabase.from('transfers').insert(record)
       if (error) { setMessage('خطأ: ' + error.message); setSaving(false); return }
       
       await supabase.from('audit_logs').insert({
         company_id: companyId, user_id: userInfo?.id, action: 'إضافة تحويل', table_name: 'transfers',
-        record_id: insertedData[0].id, new_values: record
+        new_values: record
       })
       setMessage(T.success)
     }
@@ -168,12 +163,16 @@ function TransfersContent() {
     setForm({ ...form, qty: '', unit_price: '', notes: '' })
   }
 
+  // دوال مساعدة لجلب الأسماء بناءً على المعرّف
+  const getBranchName = (id: string) => branches.find(b => b.id === id)?.name || '-'
+  const getProductName = (id: string) => products.find(p => p.id === id)?.name || '-'
+
   const handleExport = () => {
     const excelData = transfers.map(t => ({
       'التاريخ': t.transfer_date,
-      'من فرع': (t.from_branch as any)?.name || (t.from_branch as any)?.[0]?.name || '',
-      'إلى فرع': (t.to_branch as any)?.name || (t.to_branch as any)?.[0]?.name || '',
-      'الصنف': (t.products as any)?.name || '',
+      'من فرع': getBranchName(t.from_branch_id),
+      'إلى فرع': getBranchName(t.to_branch_id),
+      'الصنف': getProductName(t.product_id),
       'الكمية': t.qty, 'سعر الوحدة': t.unit_price, 'الإجمالي': t.total, 'ملاحظات': t.notes || ''
     }))
     const ws = XLSX.utils.json_to_sheet(excelData)
@@ -271,9 +270,9 @@ function TransfersContent() {
                 {transfers.map(t => (
                   <tr key={t.id} style={{ borderBottom: '1px solid #e5e7eb', background: editingId === t.id ? '#eff6ff' : 'transparent' }}>
                     <td style={tdStyle}>{t.transfer_date}</td>
-                    <td style={tdStyle}>{(t.from_branch as any)?.name || (t.from_branch as any)?.[0]?.name}</td>
-                    <td style={tdStyle}>{(t.to_branch as any)?.name || (t.to_branch as any)?.[0]?.name}</td>
-                    <td style={{...tdStyle, fontWeight: 'bold'}}>{(t.products as any)?.name}</td>
+                    <td style={tdStyle}>{getBranchName(t.from_branch_id)}</td>
+                    <td style={tdStyle}>{getBranchName(t.to_branch_id)}</td>
+                    <td style={{...tdStyle, fontWeight: 'bold'}}>{getProductName(t.product_id)}</td>
                     <td style={tdStyle}>{t.qty}</td>
                     <td style={tdStyle}>{t.unit_price}</td>
                     <td style={{...tdStyle, fontWeight: 'bold', color: '#059669'}}>{t.total}</td>
