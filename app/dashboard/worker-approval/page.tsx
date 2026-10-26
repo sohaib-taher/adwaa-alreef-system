@@ -4,24 +4,26 @@ import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 const T = {
-  title: 'تأكيد الاستلام',
-  note: 'استلمتم عدداً غير المكتوب؟ اكتبوا العدد الحقيقي وسبب الفرق أو ما بقي — يصل للإدارة، ولا يتغير الكشف حتى تعتمده.',
-  date: 'اليوم',
+  title: 'اعتماد استلامات العمال',
+  subTitle: 'مراجعة الفروقات والموافقة عليها',
+  date: 'التاريخ',
   branch: 'الفرع',
   item: 'الصنف',
   sent: 'المُرسل',
-  received: 'المستلم فعلاً ✎',
-  diff: 'الفرق أو المتبقي',
-  action: 'إرسال',
-  success: 'تم الإرسال للإدارة بنجاح',
-  noData: 'لا توجد استلامات بانتظار التأكيد',
-  footer: 'فواتير المبيعات تُصدر بقدر ما اعتُمد من دفعاتكم — فاتورةَ يومٍ أو أسبوع'
+  received: 'المستلم',
+  diff: 'الفرق',
+  note: 'ملاحظات العامل',
+  action: 'الإجراء',
+  approve: 'اعتماد',
+  reject: 'رفض',
+  noData: 'لا توجد فروقات بانتظار الاعتماد',
+  loading: 'جاري التحميل...'
 }
 
-function WorkerConfirmContent() {
+function WorkerApprovalContent() {
   const [loading, setLoading] = useState(true)
-  const [allocations, setAllocations] = useState<any[]>([])
-  const [savingId, setSavingId] = useState<string | null>(null)
+  const [approvals, setApprovals] = useState<any[]>([])
+  const [processingId, setProcessingId] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -42,71 +44,57 @@ function WorkerConfirmContent() {
         branches ( name ),
         daily_receipt_items (
           manual_product_name,
+          manual_unit,
           daily_receipts ( receipt_date, company_id )
         )
       `)
-      .eq('worker_status', 'pending')
+      .eq('worker_status', 'pending_approval')
       .order('created_at', { ascending: false })
 
     const filtered = (data || []).filter((a: any) => 
       a.daily_receipt_items?.daily_receipts?.company_id === userData.company_id
     )
-    setAllocations(filtered)
+
+    setApprovals(filtered)
     setLoading(false)
   }
 
-  const handleInputChange = (id: string, field: string, value: any) => {
-    setAllocations(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a))
-  }
-
-  async function handleSend(id: string) {
-    const allocation = allocations.find(a => a.id === id)
-    if (!allocation || allocation.actual_received_qty === null) {
-      alert('الرجاء إدخال الكمية المستلمة')
-      return
-    }
-
-    setSavingId(id)
+  async function handleAction(id: string, action: 'approve' | 'reject') {
+    setProcessingId(id)
     const supabase = createClient()
+    const newStatus = action === 'approve' ? 'admin_approved' : 'admin_rejected'
 
     const { error } = await supabase
       .from('receipt_branch_allocations')
-      .update({
-        actual_received_qty: Number(allocation.actual_received_qty),
-        discrepancy_note: allocation.discrepancy_note,
-        worker_status: 'pending_approval'
-      })
+      .update({ worker_status: newStatus })
       .eq('id', id)
 
     if (!error) {
-      setAllocations(prev => prev.filter(a => a.id !== id))
-      alert(T.success)
+      setApprovals(prev => prev.filter(a => a.id !== id))
     } else {
-      alert('خطأ: ' + error.message)
+      alert('حدث خطأ: ' + error.message)
     }
-    setSavingId(null)
+    setProcessingId(null)
   }
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>جاري التحميل...</div>
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>{T.loading}</div>
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', maxWidth: '900px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', maxWidth: '1000px', margin: '0 auto' }}>
       
       <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-        <h1 style={{ color: '#065f46', fontSize: '28px', margin: '0 0 15px', fontWeight: 'bold' }}>{T.title}</h1>
-        <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', maxWidth: '600px', margin: '0 auto' }}>
-          {T.note}
-        </p>
+        <h1 style={{ color: '#065f46', fontSize: '26px', margin: '0 0 10px' }}>{T.title}</h1>
+        <p style={{ color: '#6b7280', fontSize: '15px' }}>{T.subTitle}</p>
       </div>
 
-      {allocations.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', background: 'white', borderRadius: '10px', color: '#6b7280', border: '1px solid #e5e7eb' }}>
+      {approvals.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px', background: 'white', borderRadius: '10px', color: '#6b7280', fontWeight: 'bold' }}>
           {T.noData}
         </div>
       ) : (
-        <div style={{ background: 'white', borderRadius: '10px', overflowX: 'auto', border: '1px solid #e5e7eb' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
-            <thead style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+        <div style={{ background: 'white', borderRadius: '10px', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
+            <thead style={{ background: '#065f46', color: 'white' }}>
               <tr>
                 <th style={thStyle}>{T.date}</th>
                 <th style={thStyle}>{T.branch}</th>
@@ -114,31 +102,38 @@ function WorkerConfirmContent() {
                 <th style={thStyle}>{T.sent}</th>
                 <th style={thStyle}>{T.received}</th>
                 <th style={thStyle}>{T.diff}</th>
+                <th style={thStyle}>{T.note}</th>
                 <th style={thStyle}>{T.action}</th>
               </tr>
             </thead>
             <tbody>
-              {allocations.map((row) => {
+              {approvals.map((row) => {
                 const item = row.daily_receipt_items
+                const unitText = item?.manual_unit ? ` ${item.manual_unit}` : ''
                 const dateObj = new Date(item?.daily_receipts?.receipt_date)
                 const formattedDate = `${dateObj.getDate()}-${dateObj.getMonth() + 1}-${dateObj.getFullYear()}`
+                const diff = Number(row.sent_qty) - Number(row.actual_received_qty)
 
                 return (
-                  <tr key={row.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <tr key={row.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                     <td style={tdStyle}>{formattedDate}</td>
                     <td style={tdStyle}>{row.branches?.name}</td>
                     <td style={{...tdStyle, fontWeight: 'bold'}}>{item?.manual_product_name}</td>
-                    <td style={{...tdStyle, color: '#374151'}}>{row.sent_qty} —</td>
-                    <td style={tdStyle}>
-                      <input type="number" placeholder="العدد" value={row.actual_received_qty || ''} onChange={(e) => handleInputChange(row.id, 'actual_received_qty', e.target.value)} style={inputStyle} />
+                    <td style={tdStyle}>{row.sent_qty} {unitText}</td>
+                    <td style={{...tdStyle, color: '#3b82f6', fontWeight: 'bold'}}>{row.actual_received_qty} {unitText}</td>
+                    <td style={{...tdStyle, color: diff !== 0 ? '#dc2626' : '#059669', fontWeight: 'bold'}}>
+                      {diff !== 0 ? diff : 'مطابق'}
                     </td>
+                    <td style={{...tdStyle, color: '#6b7280'}}>{row.discrepancy_note || '-'}</td>
                     <td style={tdStyle}>
-                      <input type="text" placeholder="السبب..." value={row.discrepancy_note || ''} onChange={(e) => handleInputChange(row.id, 'discrepancy_note', e.target.value)} style={inputStyle} />
-                    </td>
-                    <td style={tdStyle}>
-                      <button onClick={() => handleSend(row.id)} disabled={savingId === row.id} style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                        {savingId === row.id ? '...' : T.action}
-                      </button>
+                      <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                        <button onClick={() => handleAction(row.id, 'approve')} disabled={processingId === row.id} style={{ padding: '6px 12px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                          {T.approve}
+                        </button>
+                        <button onClick={() => handleAction(row.id, 'reject')} disabled={processingId === row.id} style={{ padding: '6px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                          {T.reject}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -147,22 +142,13 @@ function WorkerConfirmContent() {
           </table>
         </div>
       )}
-
-      <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '13px', marginTop: '30px' }}>
-        {T.footer}
-      </p>
     </div>
   )
 }
 
-export default function WorkerConfirmPage() {
-  return (
-    <Suspense fallback={<div>جاري التحميل...</div>}>
-      <WorkerConfirmContent />
-    </Suspense>
-  )
+export default function WorkerApprovalPage() {
+  return <Suspense fallback={<div>جاري التحميل...</div>}><WorkerApprovalContent /></Suspense>
 }
 
-const thStyle: React.CSSProperties = { padding: '15px', fontSize: '14px', fontWeight: 'bold', color: '#374151' }
-const tdStyle: React.CSSProperties = { padding: '15px', fontSize: '14px' }
-const inputStyle: React.CSSProperties = { width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', textAlign: 'center', boxSizing: 'border-box' }
+const thStyle: React.CSSProperties = { padding: '12px', fontSize: '13px', fontWeight: 'bold' }
+const tdStyle: React.CSSProperties = { padding: '12px', fontSize: '14px' }

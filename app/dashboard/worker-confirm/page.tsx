@@ -13,9 +13,10 @@ const T = {
   received: 'المستلم فعلاً ✎',
   diff: 'الفرق أو المتبقي',
   action: 'إرسال',
-  success: 'تم الإرسال بنجاح',
-  noData: 'لا توجد استلامات لليوم',
-  footer: 'فواتير المبيعات تُصدر بقدر ما اعتُمد من دفعاتكم — فاتورةَ يومٍ أو أسبوع'
+  success: 'تم الإرسال للإدارة بنجاح',
+  noData: 'لا توجد استلامات بانتظار التأكيد',
+  footer: 'فواتير المبيعات تُصدر بقدر ما اعتُمد من دفعاتكم — فاتورةَ يومٍ أو أسبوع',
+  loading: 'جاري التحميل...'
 }
 
 function WorkerConfirmContent() {
@@ -35,7 +36,6 @@ function WorkerConfirmContent() {
     const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
     if (!userData) return
 
-    // جلب البيانات بناءً على الأسماء اليدوية
     const { data } = await supabase
       .from('receipt_branch_allocations')
       .select(`
@@ -63,7 +63,7 @@ function WorkerConfirmContent() {
 
   async function handleSend(id: string) {
     const allocation = allocations.find(a => a.id === id)
-    if (!allocation || allocation.actual_received_qty === null) {
+    if (!allocation || allocation.actual_received_qty === null || allocation.actual_received_qty === '') {
       alert('الرجاء إدخال الكمية المستلمة')
       return
     }
@@ -89,7 +89,7 @@ function WorkerConfirmContent() {
     setSavingId(null)
   }
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>...</div>
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>{T.loading}</div>
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', maxWidth: '900px', margin: '0 auto' }}>
@@ -159,11 +159,7 @@ function WorkerConfirmContent() {
 }
 
 export default function WorkerConfirmPage() {
-  return (
-    <Suspense fallback={<div>جاري التحميل...</div>}>
-      <WorkerConfirmContent />
-    </Suspense>
-  )
+  return <Suspense fallback={<div>جاري التحميل...</div>}><WorkerConfirmContent /></Suspense>
 }
 
 const thStyle: React.CSSProperties = { padding: '15px', fontSize: '14px', fontWeight: 'bold', color: '#374151' }
