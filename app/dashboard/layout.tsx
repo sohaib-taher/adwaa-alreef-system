@@ -23,118 +23,64 @@ const MENU = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [email, setEmail] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
 
-  // إغلاق القائمة عند التنقل
   useEffect(() => {
-    setMenuOpen(false)
+    setMenuOpen(false) // إغلاق القائمة عند التنقل
   }, [pathname])
 
-  // جلب الإيميل في الخلفية بدون تعليق
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getSession().then((res) => {
-      if (res.data.session) setEmail(res.data.session.user.email || '')
-    }).catch(() => {})
-  }, [])
-
+  // تسجيل خروج فوري
   const handleLogout = async () => {
-    try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } finally {
-      window.location.href = '/' // توجيه إجباري
-    }
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.replace('/')
   }
 
   return (
-    <div dir="rtl" style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Arial' }}>
-      
-      {/* CSS خالص للتحكم في الشاشات بدون جافاسكربت */}
+    <div dir="rtl" className="dashboard-container">
+      {/* ستايل مغلق لا يعتمد على الجافاسكربت لمنع الوميض */}
       <style>{`
-        .sidebar-container { 
-          position: fixed; top: 0; bottom: 0; right: -280px; width: 260px; 
-          background: #065f46; color: white; z-index: 999; 
-          transition: right 0.3s ease; overflow-y: auto; 
-          display: flex; flex-direction: column; 
-        }
-        .sidebar-container.open { right: 0; }
-        .mobile-header { 
-          display: flex; background: #065f46; color: white; 
-          padding: 15px 20px; justify-content: space-between; 
-          align-items: center; position: sticky; top: 0; z-index: 100; 
-        }
-        .main-content { 
-          padding: 20px; min-height: 100vh; margin-right: 0; transition: margin 0.3s; 
-        }
-        .overlay { 
-          display: none; position: fixed; inset: 0; 
-          background: rgba(0,0,0,0.5); z-index: 998; 
-        }
-        .overlay.open { display: block; }
+        .dashboard-container { display: flex; min-height: 100vh; background: #f3f4f6; font-family: Arial; }
+        .sidebar { width: 260px; background: #065f46; color: white; position: fixed; top: 0; bottom: 0; right: 0; overflow-y: auto; z-index: 1000; display: flex; flex-direction: column; transition: transform 0.3s; }
+        .main-area { flex: 1; padding: 20px; margin-right: 260px; }
+        .mobile-bar { display: none; background: #065f46; color: white; padding: 15px; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1001; }
         
-        /* عند الشاشات الكبيرة (لابتوب) */
-        @media (min-width: 1024px) {
-          .sidebar-container { right: 0 !important; }
-          .mobile-header { display: none !important; }
-          .main-content { margin-right: 260px !important; }
-          .overlay { display: none !important; }
+        @media (max-width: 1023px) {
+          .sidebar { transform: translateX(100%); }
+          .sidebar.open { transform: translateX(0); }
+          .main-area { margin-right: 0; }
+          .mobile-bar { display: flex; }
         }
       `}</style>
 
       {/* شريط الجوال */}
-      <header className="mobile-header">
-        <button 
-          onClick={() => setMenuOpen(!menuOpen)} 
-          style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '24px', padding: '5px 15px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
-        >
-          ☰
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontWeight: 'bold' }}>اضواء الريف</span>
-          <img src="/logo.png" alt="logo" style={{ width: '35px', height: '35px', background: 'white', borderRadius: '8px', padding: '2px' }} />
-        </div>
+      <header className="mobile-bar">
+        <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '24px' }}>☰</button>
+        <span style={{ fontWeight: 'bold' }}>اضواء الريف</span>
       </header>
 
-      {/* خلفية سوداء للجوال */}
-      <div className={`overlay ${menuOpen ? 'open' : ''}`} onClick={() => setMenuOpen(false)} />
-
       {/* القائمة الجانبية */}
-      <aside className={`sidebar-container ${menuOpen ? 'open' : ''}`}>
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src="/logo.png" alt="logo" style={{ width: '40px', height: '40px', background: 'white', borderRadius: '8px', padding: '2px' }} />
-          <div><div style={{ fontWeight: 'bold' }}>اضواء الريف</div><div style={{ fontSize: '10px', opacity: 0.7 }}>نظام الإدارة</div></div>
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>
+          <img src="/logo.png" alt="logo" style={{ width: '60px', height: '60px', background: 'white', borderRadius: '10px', padding: '5px', marginBottom: '10px' }} />
+          <div style={{ fontWeight: 'bold' }}>اضواء الريف</div>
         </div>
 
         <nav style={{ padding: '10px', flex: 1 }}>
           {MENU.map((item) => (
-            <Link 
-              key={item.href} 
-              href={item.href} 
-              onClick={() => setMenuOpen(false)} 
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 15px', 
-                color: 'white', textDecoration: 'none', borderRadius: '8px', marginBottom: '2px', 
-                background: pathname === item.href.split('?')[0] ? 'rgba(255,255,255,0.2)' : 'transparent', 
-                fontSize: '14px' 
-              }}
-            >
+            <Link key={item.href} href={item.href} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 15px', color: 'white', textDecoration: 'none', borderRadius: '8px', marginBottom: '4px', background: pathname === item.href.split('?')[0] ? 'rgba(255,255,255,0.2)' : 'transparent' }}>
               <span>{item.icon}</span><span>{item.label}</span>
             </Link>
           ))}
         </nav>
 
-        <div style={{ padding: '15px', borderTop: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)' }}>
-          <div style={{ fontSize: '12px', marginBottom: '10px', wordBreak: 'break-all' }}>{email || 'جاري التحميل...'}</div>
-          <button onClick={handleLogout} style={{ width: '100%', padding: '10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'inherit' }}>
-            تسجيل الخروج
-          </button>
+        <div style={{ padding: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>تسجيل الخروج</button>
         </div>
       </aside>
 
       {/* محتوى الصفحة */}
-      <main className="main-content">
+      <main className="main-area">
         {children}
       </main>
     </div>
