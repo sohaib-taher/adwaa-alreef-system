@@ -4,12 +4,12 @@ import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 const T = {
-  title: 'التقرير الأسبوعي',
+  title: 'التقرير الأسبوعي الشامل',
   day: 'اليوم',
   date: 'التاريخ',
   totalSales: 'إجمالي مبيعات الفرعين',
   totalPurch: 'إجمالي مشتريات الفرعين',
-  dakhil: 'الدخل المحدود',
+  dakhil: 'فرع الدخل المحدود',
   nasiriya: 'فرع الناصرية',
   fruit: 'مشتريات الفواكه',
   veg: 'مشتريات الخضار',
@@ -22,7 +22,6 @@ const T = {
   days: ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد']
 }
 
-// دالة مساعدة لجلب تواريخ الأسبوع الحالي (الإثنين إلى الأحد)
 function getWeekDates() {
   const today = new Date()
   const day = today.getDay()
@@ -52,10 +51,10 @@ function WeeklyReportContent() {
       const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
       if (!userData) return
 
-      // 1. جلب المبيعات والمصروفات (الإيرادات)
+      // 1. جلب الإيرادات (المبيعات والمصروفات)
       const { data: revenues } = await supabase
         .from('revenues')
-        .select('revenue_date, total_sales, expenses, branches(name)')
+        .select('revenue_date, network_amount, cash_amount, expenses, invoices, branches(name)')
         .in('revenue_date', weekDates)
         .eq('company_id', userData.company_id)
 
@@ -72,7 +71,6 @@ function WeeklyReportContent() {
         .in('receipt_date', weekDates)
         .eq('company_id', userData.company_id)
 
-      // 3. تجميع البيانات
       const grouped: any = {}
       
       weekDates.forEach(date => {
@@ -93,8 +91,13 @@ function WeeklyReportContent() {
         const target = isDakhil ? 'dakhil' : isNasiriya ? 'nasiriya' : null
 
         if (target && grouped[rev.revenue_date]) {
-          grouped[rev.revenue_date][target].sales += Number(rev.total_sales) || 0
-          grouped[rev.revenue_date][target].expenses += Number(rev.expenses) || 0
+          // المبيعات = شبكة + كاش
+          const sales = (Number(rev.network_amount) || 0) + (Number(rev.cash_amount) || 0)
+          // المصروفات = مصروفات + فواتير
+          const expenses = (Number(rev.expenses) || 0) + (Number(rev.invoices) || 0)
+          
+          grouped[rev.revenue_date][target].sales += sales
+          grouped[rev.revenue_date][target].expenses += expenses
         }
       })
 
@@ -117,16 +120,16 @@ function WeeklyReportContent() {
         })
       })
 
-      // حسابات نهائية
+      // الحسابات النهائية
       Object.values(grouped).forEach((day: any) => {
         day.dakhil.netSales = day.dakhil.sales - day.dakhil.expenses
         day.nasiriya.netSales = day.nasiriya.sales - day.nasiriya.expenses
+        
         day.totalSales = day.dakhil.sales + day.nasiriya.sales
         day.totalPurch = day.dakhil.fruit + day.dakhil.veg + day.dakhil.paper + 
                          day.nasiriya.fruit + day.nasiriya.veg + day.nasiriya.paper
       })
 
-      // تحويل إلى مصفوفة مرتبة
       const result = weekDates.map(date => grouped[date])
       setReportData(result)
       setLoading(false)
@@ -135,7 +138,12 @@ function WeeklyReportContent() {
   }, [])
 
   const calculateTotals = () => {
-    const t = { dakhil: { fruit: 0, veg: 0, paper: 0, sales: 0, expenses: 0, netSales: 0 }, nasiriya: { fruit: 0, veg: 0, paper: 0, sales: 0, expenses: 0, netSales: 0 }, totalSales: 0, totalPurch: 0 }
+    const t = { 
+      dakhil: { fruit: 0, veg: 0, paper: 0, sales: 0, expenses: 0, netSales: 0 }, 
+      nasiriya: { fruit: 0, veg: 0, paper: 0, sales: 0, expenses: 0, netSales: 0 }, 
+      totalSales: 0, totalPurch: 0 
+    }
+    
     reportData.forEach(day => {
       t.dakhil.fruit += day.dakhil.fruit; t.dakhil.veg += day.dakhil.veg; t.dakhil.paper += day.dakhil.paper
       t.dakhil.sales += day.dakhil.sales; t.dakhil.expenses += day.dakhil.expenses; t.dakhil.netSales += day.dakhil.netSales
@@ -169,10 +177,9 @@ function WeeklyReportContent() {
             <th colSpan={6} style={{...thStyle, background: '#1e3a8a'}}>{T.nasiriya}</th>
           </tr>
           <tr style={{ background: '#1e40af', color: 'white' }}>
-            {/* أعمدة الدخل */}
             <th style={thStyle}>{T.fruit}</th><th style={thStyle}>{T.veg}</th><th style={thStyle}>{T.paper}</th>
             <th style={thStyle}>{T.sales}</th><th style={thStyle}>{T.expenses}</th><th style={thStyle}>{T.netSales}</th>
-            {/* أعمدة الناصرية */}
+            
             <th style={thStyle}>{T.fruit}</th><th style={thStyle}>{T.veg}</th><th style={thStyle}>{T.paper}</th>
             <th style={thStyle}>{T.sales}</th><th style={thStyle}>{T.expenses}</th><th style={thStyle}>{T.netSales}</th>
           </tr>
@@ -182,22 +189,22 @@ function WeeklyReportContent() {
             <tr key={i} style={{ borderBottom: '1px solid #e5e7eb', background: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
               <td style={{...tdStyle, fontWeight: 'bold'}}>{T.days[i]}</td>
               <td style={tdStyle}>{row.date}</td>
-              <td style={{...tdStyle, fontWeight: 'bold'}}>{row.totalSales.toFixed(2)}</td>
-              <td style={{...tdStyle, fontWeight: 'bold'}}>{row.totalPurch.toFixed(2)}</td>
+              <td style={{...tdStyle, fontWeight: 'bold', color: '#059669'}}>{row.totalSales.toFixed(2)}</td>
+              <td style={{...tdStyle, fontWeight: 'bold', color: '#dc2626'}}>{row.totalPurch.toFixed(2)}</td>
               
-              <td style={tdStyle}>{row.dakhil.fruit.toFixed(2)}</td>
-              <td style={tdStyle}>{row.dakhil.veg.toFixed(2)}</td>
-              <td style={tdStyle}>{row.dakhil.paper.toFixed(2)}</td>
+              <td style={tdStyle}>{row.dakhil.fruit > 0 ? row.dakhil.fruit.toFixed(2) : '-'}</td>
+              <td style={tdStyle}>{row.dakhil.veg > 0 ? row.dakhil.veg.toFixed(2) : '-'}</td>
+              <td style={tdStyle}>{row.dakhil.paper > 0 ? row.dakhil.paper.toFixed(2) : '-'}</td>
               <td style={tdStyle}>{row.dakhil.sales.toFixed(2)}</td>
               <td style={tdStyle}>{row.dakhil.expenses.toFixed(2)}</td>
-              <td style={{...tdStyle, background: '#dcfce7', fontWeight: 'bold'}}>{row.dakhil.netSales.toFixed(2)}</td>
+              <td style={{...tdStyle, background: '#dcfce7', fontWeight: 'bold', color: '#065f46'}}>{row.dakhil.netSales.toFixed(2)}</td>
               
-              <td style={tdStyle}>{row.nasiriya.fruit.toFixed(2)}</td>
-              <td style={tdStyle}>{row.nasiriya.veg.toFixed(2)}</td>
-              <td style={tdStyle}>{row.nasiriya.paper.toFixed(2)}</td>
+              <td style={tdStyle}>{row.nasiriya.fruit > 0 ? row.nasiriya.fruit.toFixed(2) : '-'}</td>
+              <td style={tdStyle}>{row.nasiriya.veg > 0 ? row.nasiriya.veg.toFixed(2) : '-'}</td>
+              <td style={tdStyle}>{row.nasiriya.paper > 0 ? row.nasiriya.paper.toFixed(2) : '-'}</td>
               <td style={tdStyle}>{row.nasiriya.sales.toFixed(2)}</td>
               <td style={tdStyle}>{row.nasiriya.expenses.toFixed(2)}</td>
-              <td style={{...tdStyle, background: '#dcfce7', fontWeight: 'bold'}}>{row.nasiriya.netSales.toFixed(2)}</td>
+              <td style={{...tdStyle, background: '#dcfce7', fontWeight: 'bold', color: '#065f46'}}>{row.nasiriya.netSales.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
