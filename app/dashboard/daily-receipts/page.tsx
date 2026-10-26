@@ -3,12 +3,14 @@
 import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSearchParams } from 'next/navigation'
+import * as XLSX from 'xlsx'
 
 const T = {
   titleVeg: 'استلام الخضار اليومي',
   titleFruit: 'استلام الفواكه اليومي',
   titlePaper: 'استلام الورقيات اليومي',
   print: '🖨️ طباعة الكشف',
+  export: '📥 تصدير Excel',
   date: 'التاريخ',
   supplier: 'الموردين',
   item: 'اسم الصنف',
@@ -30,7 +32,21 @@ const T = {
   footerTotal: 'الإجمالي الكلي',
   vat: 'ضريبة القيمة المضافة (15%)',
   grandTotal: 'الإجمالي الكلي بعد الضريبة',
-  error: 'حدث خطأ'
+  error: 'حدث خطأ',
+  last20: 'آخر 20 سند استلام',
+  tableDate: 'التاريخ',
+  tableCategory: 'النوع',
+  tableTotal: 'الإجمالي',
+  tableStatus: 'الحالة',
+  tableActions: 'الإجراءات',
+  delete: 'حذف',
+  confirmDelete: 'هل أنت متأكد من حذف هذا السند بالكامل؟ سيتم حذف جميع الأصناف المرتبطة به.',
+  cannotDelete: 'لا يمكن الحذف! هذا السند تم ترحيله إلى المشتريات، أو تم اعتماده من الإدارة.',
+  deleted: 'تم الحذف بنجاح',
+  statusPosted: 'تم الترحيل',
+  statusPending: 'قيد الانتظار',
+  noData: 'لا توجد سندات سابقة',
+  loading: 'جاري التحميل...'
 }
 
 function DailyReceiptsContent() {
@@ -44,19 +60,41 @@ function DailyReceiptsContent() {
   const [isTaxEnabled, setIsTaxEnabled] = useState(type === 'fruit')
   const [branches, setBranches] = useState<any[]>([])
   const [savedReceiptId, setSavedReceiptId] = useState<string | null>(null)
+  
+  const [companyId, setCompanyId] = useState('')
+  const [receiptsList, setReceiptsList] = useState<any[]>([])
 
   const [rows, setRows] = useState<any[]>([
     { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }
   ])
 
   useEffect(() => {
-    async function loadData() {
-      const supabase = createClient()
-      const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true)
-      setBranches(br || [])
-    }
     loadData()
-  }, [])
+  }, [type])
+
+  async function loadData() {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
+    if (!userData) return
+    setCompanyId(userData.company_id)
+
+    const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true).eq('company_id', userData.company_id)
+    setBranches(br || [])
+
+    // جلب قائمة السندات السابقة
+    const { data: rList } = await supabase
+      .from('daily_receipts')
+      .select(`id, receipt_date, category_type, is_posted_to_purchases, daily_receipt_items(total_qty, unit_price)`)
+      .eq('company_id', userData.company_id)
+      .eq('category_type', type)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    
+    setReceiptsList(rList || [])
+  }
 
   const handleRowChange = (index: number, field: string, value: any) => {
     const newRows = [...rows]
@@ -80,11 +118,7 @@ function DailyReceiptsContent() {
         })
       }
     })
-
-    if (newRows.length > 0) {
-      setRows(newRows)
-      alert(`تم لصق ${newRows.length} صنف بنجاح!`)
-    }
+    if (newRows.length > 0) { setRows(newRows); alert(`تم لصق ${newRows.length} صنف بنجاح!`) }
   }
 
   const addRow = () => setRows([...rows, { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
@@ -96,16 +130,11 @@ function DailyReceiptsContent() {
     const rowQty = getRowTotalQty(row)
     const rowPrice = getRowTotalPrice(row)
     return {
-      dakhil_qty: acc.dakhil_qty + (Number(row.dakhil_qty) || 0),
-      dakhil_total: acc.dakhil_total + ((Number(row.dakhil_qty) || 0) * (Number(row.price) || 0)),
-      nasiriya_qty: acc.nasiriya_qty + (Number(row.nasiriya_qty) || 0),
-      nasiriya_total: acc.nasiriya_total + ((Number(row.nasiriya_qty) || 0) * (Number(row.price) || 0)),
-      taj_qty: acc.taj_qty + (Number(row.taj_qty) || 0),
-      taj_total: acc.taj_total + ((Number(row.taj_qty) || 0) * (Number(row.price) || 0)),
-      fourth_qty: acc.fourth_qty + (Number(row.fourth_qty) || 0),
-      fourth_total: acc.fourth_total + ((Number(row.fourth_qty) || 0) * (Number(row.price) || 0)),
-      total_qty: acc.total_qty + rowQty,
-      total_price: acc.total_price + rowPrice,
+      dakhil_qty: acc.dakhil_qty + (Number(row.dakhil_qty) || 0), dakhil_total: acc.dakhil_total + ((Number(row.dakhil_qty) || 0) * (Number(row.price) || 0)),
+      nasiriya_qty: acc.nasiriya_qty + (Number(row.nasiriya_qty) || 0), nasiriya_total: acc.nasiriya_total + ((Number(row.nasiriya_qty) || 0) * (Number(row.price) || 0)),
+      taj_qty: acc.taj_qty + (Number(row.taj_qty) || 0), taj_total: acc.taj_total + ((Number(row.taj_qty) || 0) * (Number(row.price) || 0)),
+      fourth_qty: acc.fourth_qty + (Number(row.fourth_qty) || 0), fourth_total: acc.fourth_total + ((Number(row.fourth_qty) || 0) * (Number(row.price) || 0)),
+      total_qty: acc.total_qty + rowQty, total_price: acc.total_price + rowPrice,
     }
   }, { dakhil_qty: 0, dakhil_total: 0, nasiriya_qty: 0, nasiriya_total: 0, taj_qty: 0, taj_total: 0, fourth_qty: 0, fourth_total: 0, total_qty: 0, total_price: 0 })
 
@@ -117,13 +146,8 @@ function DailyReceiptsContent() {
     const supabase = createClient()
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not found')
-      const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
-      if (!userData) throw new Error('Company not found')
-
       const { data: receipt, error: receiptError } = await supabase.from('daily_receipts').insert({
-        company_id: userData.company_id, receipt_date: date, category_type: type, is_tax_enabled: isTaxEnabled,
+        company_id: companyId, receipt_date: date, category_type: type, is_tax_enabled: isTaxEnabled,
       }).select('id').single()
 
       if (receiptError) throw receiptError
@@ -150,6 +174,7 @@ function DailyReceiptsContent() {
         }
       }
       setMessage(T.success)
+      await loadData() // تحديث القائمة
     } catch (err: any) {
       setMessage(T.error + ': ' + err.message)
     } finally {
@@ -187,9 +212,16 @@ function DailyReceiptsContent() {
         }
       }
       await supabase.from('daily_receipts').update({ is_posted_to_purchases: true }).eq('id', savedReceiptId)
+      
+      // تسجيل الحركة
+      await supabase.from('audit_logs').insert({
+        company_id: companyId, user_id: userData!.id, action: 'ترحيل سند استلام', table_name: 'daily_receipts', record_id: savedReceiptId
+      })
+
       setMessage(T.posted)
       setRows([{ product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
       setSavedReceiptId(null)
+      await loadData()
     } catch (err: any) {
       setMessage(T.error + ': ' + err.message)
     } finally {
@@ -197,7 +229,33 @@ function DailyReceiptsContent() {
     }
   }
 
+  // دالة الحذف مع حماية البيانات المحاسبية
+  async function handleDeleteReceipt(id: string, isPosted: boolean) {
+    if (isPosted) {
+      alert(T.cannotDelete)
+      return
+    }
+    if (!window.confirm(T.confirmDelete)) return
+
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', user?.id).single()
+
+    const { error } = await supabase.from('daily_receipts').delete().eq('id', id)
+    if (error) { alert('خطأ: ' + error.message); return }
+
+    // تسجيل الحذف في سجل التدقيق
+    await supabase.from('audit_logs').insert({
+      company_id: companyId, user_id: userInfo?.id, action: 'حذف سند استلام', table_name: 'daily_receipts',
+      record_id: id, old_values: { note: 'تم حذف السند بالكامل مع أصنافه' }
+    })
+
+    setMessage(T.deleted)
+    await loadData()
+  }
+
   const getTitle = () => type === 'fruit' ? T.titleFruit : type === 'paper' ? T.titlePaper : T.titleVeg
+  const getCategoryName = () => type === 'fruit' ? 'فواكه' : type === 'paper' ? 'ورقيات' : 'خضار'
 
   return (
     <div style={{ padding: '10px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
@@ -293,6 +351,48 @@ function DailyReceiptsContent() {
         )}
       </div>
 
+      {/* قائمة السندات السابقة (للحذف) */}
+      <div className="no-print" style={{ marginTop: '40px', background: 'white', padding: '20px', borderRadius: '10px' }}>
+        <h2 style={{ margin: '0 0 15px', color: '#065f46', fontSize: '18px' }}>{T.last20}</h2>
+        {receiptsList.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#6b7280' }}>{T.noData}</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'center' }}>
+            <thead>
+              <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #ccc' }}>
+                <th style={thStyle}>{T.tableDate}</th>
+                <th style={thStyle}>{T.tableCategory}</th>
+                <th style={thStyle}>{T.tableTotal}</th>
+                <th style={thStyle}>{T.tableStatus}</th>
+                <th style={thStyle}>{T.tableActions}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receiptsList.map((rec) => {
+                const total = rec.daily_receipt_items?.reduce((sum: number, item: any) => sum + ((item.total_qty || 0) * (item.unit_price || 0)), 0) || 0
+                return (
+                  <tr key={rec.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={tdStyle}>{rec.receipt_date}</td>
+                    <td style={tdStyle}>{getCategoryName()}</td>
+                    <td style={{...tdStyle, fontWeight: 'bold'}}>{total.toFixed(2)}</td>
+                    <td style={tdStyle}>
+                      <span style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '11px', background: rec.is_posted_to_purchases ? '#dcfce7' : '#fef08a', color: rec.is_posted_to_purchases ? '#065f46' : '#92400e', fontWeight: 'bold' }}>
+                        {rec.is_posted_to_purchases ? T.statusPosted : T.statusPending}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <button onClick={() => handleDeleteReceipt(rec.id, rec.is_posted_to_purchases)} style={{ padding: '6px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                        {T.delete}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
       <style jsx global>{`
         @media print {
           aside, header, .no-print { display: none !important; }
@@ -308,6 +408,6 @@ function DailyReceiptsContent() {
 
 export default function DailyReceiptsPage() { return <Suspense fallback={<div>جاري التحميل...</div>}><DailyReceiptsContent /></Suspense> }
 
-const thStyle: React.CSSProperties = { padding: '10px', border: '1px solid #1e40af', fontWeight: 'bold' }
+const thStyle: React.CSSProperties = { padding: '10px', border: '1px solid #e1e5eb', fontWeight: 'bold' }
 const tdStyle: React.CSSProperties = { padding: '5px', border: '1px solid #e5e7eb' }
 const inputStyle: React.CSSProperties = { width: '100%', padding: '6px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', boxSizing: 'border-box' }
