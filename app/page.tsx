@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/client'
 const T = {
   mainTitle: 'لوحة التحكم الرئيسية',
   subTitle: 'نظرة عامة وإدارة النظام',
-  
   dailyOps: 'العمليات اليومية',
   receiptVeg: 'استلام خضار',
   receiptFruit: 'استلام فواكه',
@@ -15,14 +14,12 @@ const T = {
   workerApproval: 'اعتماد الإدارة',
   revenues: 'الإيرادات اليومية',
   purchases: 'فواتير المشتريات',
-
   reports: 'التقارير والمناديب',
   weeklyReport: 'التقرير الأسبوعي',
   salesMovement: 'حركة المبيعات',
   jaber: 'تقرير جابر (فواكه)',
   bilal: 'تقرير بلال (خضار)',
   rajeh: 'تقرير عبده راجح (ورقيات)',
-
   admin: 'الإدارة والإعدادات',
   branches: 'الفروع',
   products: 'الأصناف',
@@ -51,7 +48,6 @@ export default function Dashboard() {
         <p style={{ color: '#6b7280', fontSize: '16px', margin: 0 }}>{T.subTitle}</p>
       </div>
 
-      {/* قسم العمليات اليومية */}
       <h2 style={{ color: '#374151', fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>{T.dailyOps}</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px', marginBottom: '40px' }}>
         <Link href="/dashboard/daily-receipts?type=vegetable" style={cardStyle}>
@@ -66,10 +62,13 @@ export default function Dashboard() {
           <span style={{ fontSize: '35px', marginBottom: '10px' }}>👷‍♂️</span>
           <span style={titleStyle}>{T.workerConfirm}</span>
         </Link>
+        
+        {/* هذا هو الزر الذي نسيت إضافته في الكود السابق */}
         <Link href="/dashboard/worker-approval" style={cardStyle}>
           <span style={{ fontSize: '35px', marginBottom: '10px' }}>✅</span>
           <span style={titleStyle}>{T.workerApproval}</span>
         </Link>
+
         <Link href="/dashboard/revenues" style={cardStyle}>
           <span style={{ fontSize: '35px', marginBottom: '10px' }}>💰</span>
           <span style={titleStyle}>{T.revenues}</span>
@@ -80,7 +79,6 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* قسم التقارير */}
       <h2 style={{ color: '#374151', fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>{T.reports}</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px', marginBottom: '40px' }}>
         <Link href="/dashboard/reports/weekly" style={cardStyle}>
@@ -105,7 +103,6 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* قسم الإدارة */}
       <h2 style={{ color: '#374151', fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>{T.admin}</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px' }}>
         <Link href="/dashboard/branches" style={cardStyle}>
@@ -130,22 +127,12 @@ export default function Dashboard() {
 }
 
 const cardStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'white',
-  padding: '25px 15px',
-  borderRadius: '16px',
-  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-  textDecoration: 'none',
-  border: '1px solid #f3f4f6',
-  transition: 'transform 0.2s'
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+  background: 'white', padding: '25px 15px', borderRadius: '16px',
+  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', textDecoration: 'none',
+  border: '1px solid #f3f4f6', transition: 'transform 0.2s'
 }
 
 const titleStyle: React.CSSProperties = {
-  color: '#1f2937',
-  fontWeight: 'bold',
-  fontSize: '15px',
-  textAlign: 'center'
+  color: '#1f2937', fontWeight: 'bold', fontSize: '15px', textAlign: 'center'
 }
