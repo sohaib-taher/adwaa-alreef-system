@@ -23,6 +23,7 @@ const MENU = [
   { href: '/dashboard/reports/rajeh', label: 'تقرير راجح', icon: '📦' },
   { href: '/dashboard/branches', label: 'الفروع', icon: '🏬' },
   { href: '/dashboard/products', label: 'الأصناف', icon: '🍏' },
+  { href: '/dashboard/audit-logs', label: 'سجل التعديلات', icon: '📜' },
   { href: '/dashboard/users', label: 'المستخدمون', icon: '👥' },
   { href: '/dashboard/settings', label: 'الإعدادات', icon: '⚙️' },
 ]
