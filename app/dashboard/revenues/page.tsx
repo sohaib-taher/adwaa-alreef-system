@@ -152,12 +152,9 @@ function RevenuesContent() {
 
     try {
       // 1. تنفيذ الحذف
-      const { error, count } = await supabase
-        .from('revenues')
-        .delete({ count: 'exact' })
-        .eq('id', id)
-
-      if (error) throw new Error(error.message)
+    const { error, count } = await supabase.from('revenues').delete({ count: 'exact' }).eq('id', id)
+     if (error) { alert('خطأ: ' + error.message); return }
+     if (count === 0) { alert('فشل الحذف: صلاحيات قاعدة البيانات تمنع الحذف.'); return }
 
       // 2. تسجيل الحذف في سجل التدقيق (مع فحص الأخطاء)
       const { error: logError } = await supabase.from('audit_logs').insert({

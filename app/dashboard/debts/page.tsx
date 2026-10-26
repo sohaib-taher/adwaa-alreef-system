@@ -116,7 +116,7 @@ function DebtsContent() {
     setSaving(false)
   }
 
-  async function handleDelete(id: string) {
+    async function handleDelete(id: string) {
     if (!window.confirm(T.confirmDelete)) return
     const supabase = createClient()
     
@@ -124,9 +124,24 @@ function DebtsContent() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', user?.id).single()
 
-    const { error } = await supabase.from('debts').delete().eq('id', id)
-    if (error) { alert('خطأ: ' + error.message); return }
+    // الحذف مع طلب التأكد من عدد الصفوف المحذوفة
+    const { error, count } = await supabase
+      .from('debts')
+      .delete({ count: 'exact' })
+      .eq('id', id)
+
+    if (error) {
+      alert('فشل الحذف! السبب: ' + error.message)
+      return
+    }
+
+    // إذا كان العدد صفر، يعني أن قاعدة البيانات رفضت الحذف (بسبب الصلاحيات)
+    if (count === 0) {
+      alert('فشل الحذف! السجل موجود ولكن قاعدة البيانات رفضت الحذف (تأكد من صلاحيات RLS في Supabase).')
+      return
+    }
     
+    // تسجيل الحذف في سجل التدقيق
     await supabase.from('audit_logs').insert({
       company_id: companyId, user_id: userInfo?.id, action: 'حذف مديونية', table_name: 'debts',
       record_id: id, old_values: oldRecord
