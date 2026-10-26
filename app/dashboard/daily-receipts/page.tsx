@@ -1,17 +1,16 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSearchParams } from 'next/navigation'
 
-// استخدام Unicode لتجنب مشاكل VS Code
 const T = {
   titleVeg: '\u0627\u0633\u062A\u0644\u0627\u0645 \u0627\u0644\u062E\u0636\u0627\u0631 \u0627\u0644\u064A\u0648\u0645\u064A',
   titleFruit: '\u0627\u0633\u062A\u0644\u0627\u0645 \u0627\u0644\u0641\u0648\u0627\u0643\u0647 \u0627\u0644\u064A\u0648\u0645\u064A',
   titlePaper: '\u0627\u0633\u062A\u0644\u0627\u0645 \u0627\u0644\u0648\u0631\u0642\u064A\u0627\u062A \u0627\u0644\u064A\u0648\u0645\u064A',
-  date: '\u0627\u0644\u062A\u0627\u0631\u064A\u062E',
   item: '\u0627\u0644\u0635\u0646\u0641',
   supplier: '\u0627\u0644\u0645\u0648\u0631\u062F',
+  unit: '\u0627\u0644\u0639\u0628\u0648\u0629',
   totalQty: '\u0627\u0644\u0643\u0645\u064A\u0629 \u0627\u0644\u0643\u0644\u064A\u0629',
   price: '\u0627\u0644\u0633\u0639\u0631',
   total: '\u0627\u0644\u0625\u062C\u0645\u0627\u0644\u064A',
@@ -29,49 +28,32 @@ function DailyReceiptsContent() {
   const searchParams = useSearchParams()
   const type = searchParams.get('type') || 'vegetable'
 
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [isTaxEnabled, setIsTaxEnabled] = useState(type === 'fruit')
   
-  const [products, setProducts] = useState<any[]>([])
-  const [suppliers, setSuppliers] = useState<any[]>([])
-  
-  // تخزين معرفات الفروع لاستخدامها في الحفظ
+  // تخزين معرفات الفروع
   const [dakhilId, setDakhilId] = useState('')
   const [nasiriyaId, setNasiriyaId] = useState('')
   const [tajId, setTajId] = useState('')
 
+  // الصفوف الافتراضية (بدون قوائم منسدلة)
   const [rows, setRows] = useState<any[]>([
-    { product_id: '', supplier_id: '', total_qty: 0, price: 0, dakhil: 0, nasiriya: 0, taj: 0 }
+    { product_name: '', supplier_name: '', unit: '', total_qty: 0, price: 0, dakhil: 0, nasiriya: 0, taj: 0 }
   ])
 
-  useEffect(() => {
-    async function loadData() {
-      const supabase = createClient()
-      
-      const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true).order('name')
-      if (br) {
-        // محاولة ربط أسماء الفروع بمعرفاتها (بناءً على الأسماء الشائعة)
-        setDakhilId(br.find(b => b.name.includes('الدخل'))?.id || '')
-        setNasiriyaId(br.find(b => b.name.includes('الناصرية'))?.id || '')
-        setTajId(br.find(b => b.name.includes('التاج') || b.name.includes('تاج'))?.id || '')
+  useState(() => {
+    // جلب معرفات الفروع مرة واحدة عند فتح الشاشة
+    const supabase = createClient()
+    supabase.from('branches').select('id, name').eq('is_active', true).then(({ data }) => {
+      if (data) {
+        setDakhilId(data.find(b => b.name.includes('الدخل'))?.id || '')
+        setNasiriyaId(data.find(b => b.name.includes('الناصرية'))?.id || '')
+        setTajId(data.find(b => b.name.includes('التاج') || b.name.includes('تاج'))?.id || '')
       }
-
-      const { data: sup } = await supabase.from('suppliers').select('id, name').eq('is_active', true).order('name')
-      setSuppliers(sup || [])
-
-      const { data: cat } = await supabase.from('categories').select('id').eq('type', type).single()
-      if (cat) {
-        const { data: prod } = await supabase.from('products').select('id, name').eq('category_id', cat.id).eq('is_active', true).order('name')
-        setProducts(prod || [])
-      }
-
-      setLoading(false)
-    }
-    loadData()
-  }, [type])
+    })
+  })
 
   const handleRowChange = (index: number, field: string, value: any) => {
     const newRows = [...rows]
@@ -80,7 +62,7 @@ function DailyReceiptsContent() {
   }
 
   const addRow = () => {
-    setRows([...rows, { product_id: '', supplier_id: '', total_qty: 0, price: 0, dakhil: 0, nasiriya: 0, taj: 0 }])
+    setRows([...rows, { product_name: '', supplier_name: '', unit: '', total_qty: 0, price: 0, dakhil: 0, nasiriya: 0, taj: 0 }])
   }
 
   const getTitle = () => {
@@ -89,47 +71,44 @@ function DailyReceiptsContent() {
     return T.titleVeg
   }
 
-  // 🚀 دالة الحفظ الفعلية في قاعدة البيانات
   async function handleSave() {
     setSaving(true)
     setMessage('')
     const supabase = createClient()
 
     try {
-      // 1. جلب بيانات المستخدم
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('User not found')
       
       const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
       if (!userData) throw new Error('Company not found')
 
-      // 2. إنشاء سند الاستلام الرئيسي
+      // 1. إنشاء سند الاستلام
       const { data: receipt, error: receiptError } = await supabase.from('daily_receipts').insert({
         company_id: userData.company_id,
         receipt_date: date,
         category_type: type,
         is_tax_enabled: isTaxEnabled,
-        is_posted_to_purchases: false
       }).select('id').single()
 
       if (receiptError) throw receiptError
 
-      // 3. المرور على كل سطر في الجدول وحفظه
+      // 2. حفظ الأصناف
       for (const row of rows) {
-        if (!row.product_id) continue; // تجاهل السطور الفارغة
+        if (!row.product_name) continue; // تخطي السطور الفارغة
 
-        // حفظ الصنف
         const { data: item, error: itemError } = await supabase.from('daily_receipt_items').insert({
           receipt_id: receipt.id,
-          product_id: row.product_id,
-          supplier_id: row.supplier_id || null,
+          manual_product_name: row.product_name,
+          manual_supplier_name: row.supplier_name,
+          manual_unit: row.unit,
           total_qty: row.total_qty || 0,
           unit_price: row.price || 0
         }).select('id').single()
 
         if (itemError) throw itemError
 
-        // حفظ التوزيع للفروع (إذا كان هناك كمية أكبر من 0)
+        // 3. توزيع الفروع
         if (row.dakhil > 0 && dakhilId) {
           await supabase.from('receipt_branch_allocations').insert({ receipt_item_id: item.id, branch_id: dakhilId, sent_qty: row.dakhil })
         }
@@ -142,23 +121,17 @@ function DailyReceiptsContent() {
       }
 
       setMessage(T.success)
-      // تفريغ الجدول بعد الحفظ
-      setRows([{ product_id: '', supplier_id: '', total_qty: 0, price: 0, dakhil: 0, nasiriya: 0, taj: 0 }])
+      setRows([{ product_name: '', supplier_name: '', unit: '', total_qty: 0, price: 0, dakhil: 0, nasiriya: 0, taj: 0 }])
       
     } catch (err: any) {
-      console.error(err)
       setMessage(T.error + ': ' + err.message)
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>...</div>
-
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl' }}>
-      
-      {/* الشريط العلوي */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h1 style={{ margin: 0, color: '#065f46', fontSize: '24px' }}>{getTitle()}</h1>
         
@@ -179,13 +152,13 @@ function DailyReceiptsContent() {
         </div>
       )}
 
-      {/* الجدول */}
       <div style={{ background: 'white', borderRadius: '10px', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
           <thead style={{ background: '#065f46', color: 'white' }}>
             <tr>
               <th style={thStyle}>{T.item}</th>
               <th style={thStyle}>{T.supplier}</th>
+              <th style={thStyle}>{T.unit}</th>
               <th style={thStyle}>{T.totalQty}</th>
               <th style={thStyle}>{T.price}</th>
               <th style={thStyle}>{T.total}</th>
@@ -199,18 +172,9 @@ function DailyReceiptsContent() {
               const total = row.total_qty * row.price;
               return (
                 <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={tdStyle}>
-                    <select value={row.product_id} onChange={(e) => handleRowChange(index, 'product_id', e.target.value)} style={inputStyle}>
-                      <option value="">اختر الصنف</option>
-                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </td>
-                  <td style={tdStyle}>
-                    <select value={row.supplier_id} onChange={(e) => handleRowChange(index, 'supplier_id', e.target.value)} style={inputStyle}>
-                      <option value="">اختر المورد</option>
-                      {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </td>
+                  <td style={tdStyle}><input type="text" placeholder="اسم الصنف" value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} /></td>
+                  <td style={tdStyle}><input type="text" placeholder="اسم المورد" value={row.supplier_name} onChange={(e) => handleRowChange(index, 'supplier_name', e.target.value)} style={inputStyle} /></td>
+                  <td style={tdStyle}><input type="text" placeholder="كرتون..." value={row.unit} onChange={(e) => handleRowChange(index, 'unit', e.target.value)} style={inputStyle} /></td>
                   <td style={tdStyle}><input type="number" value={row.total_qty || ''} onChange={(e) => handleRowChange(index, 'total_qty', Number(e.target.value))} style={inputStyle} /></td>
                   <td style={tdStyle}><input type="number" value={row.price || ''} onChange={(e) => handleRowChange(index, 'price', Number(e.target.value))} style={inputStyle} /></td>
                   <td style={{...tdStyle, fontWeight: 'bold', color: '#065f46'}}>{total.toFixed(2)}</td>
@@ -224,7 +188,6 @@ function DailyReceiptsContent() {
         </table>
       </div>
 
-      {/* أزرار التحكم */}
       <div style={{ marginTop: '20px', display: 'flex', gap: '15px' }}>
         <button onClick={addRow} style={{ padding: '12px 20px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit' }}>
           {T.addRow}
@@ -247,7 +210,4 @@ export default function DailyReceiptsPage() {
 
 const thStyle: React.CSSProperties = { padding: '12px', fontSize: '14px', fontWeight: 'bold' }
 const tdStyle: React.CSSProperties = { padding: '8px' }
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px',
-  textAlign: 'center', fontSize: '14px', boxSizing: 'border-box'
-}
+const inputStyle: React.CSSProperties = { width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', textAlign: 'center', fontSize: '14px', boxSizing: 'border-box' }

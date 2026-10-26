@@ -50,7 +50,7 @@ function WorkerConfirmContent() {
           daily_receipt_items (
             unit_price,
             daily_receipts ( receipt_date, company_id ),
-            products ( name, unit )
+            manual_product_name, manual_unit
           )
         `)
         .eq('worker_status', 'pending')
@@ -138,8 +138,8 @@ function WorkerConfirmContent() {
             </thead>
             <tbody>
               {allocations.map((row) => {
-                const productInfo = row.daily_receipt_items?.products
-                const unitText = productInfo?.unit ? ` ${productInfo.unit}` : ''
+                const productName = row.daily_receipt_items?.manual_product_name || 'غير محدد'
+                const unitText = row.daily_receipt_items?.manual_unit ? ` ${row.daily_receipt_items.manual_unit}` : ''
                 const dateObj = new Date(row.daily_receipt_items?.daily_receipts?.receipt_date)
                 const formattedDate = `${dateObj.getDate()}-${dateObj.getMonth() + 1}-${dateObj.getFullYear()}`
 
@@ -147,7 +147,7 @@ function WorkerConfirmContent() {
                   <tr key={row.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                     <td style={tdStyle}>{formattedDate}</td>
                     <td style={tdStyle}>{row.branches?.name}</td>
-                    <td style={{...tdStyle, fontWeight: 'bold'}}>{productInfo?.name}</td>
+                    <td style={{...tdStyle, fontWeight: 'bold'}}>{productName}</td>
                     <td style={{...tdStyle, color: '#059669', fontWeight: 'bold'}}>
                       {row.sent_qty} {unitText}
                     </td>
