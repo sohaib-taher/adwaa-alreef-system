@@ -65,9 +65,10 @@ function SalesMovementContent() {
       })
 
       revenues?.forEach(rev => {
-    const branchName = (rev.branches as any)?.name || (rev.branches as any)?.[0]?.name || ''
-    const isDakhil = branchName.includes('الدخل')
-    const isNasiriya = branchName.includes('الناصرية')
+        // معالجة مشكلة TypeScript مع العلاقات
+        const branchName = (rev.branches as any)?.name || (rev.branches as any)?.[0]?.name || ''
+        const isDakhil = branchName.includes('الدخل')
+        const isNasiriya = branchName.includes('الناصرية')
 
         if (grouped[rev.revenue_date]) {
           if (isDakhil) {
@@ -122,10 +123,10 @@ function SalesMovementContent() {
             <tr key={i} style={{ borderBottom: '1px solid #e5e7eb', background: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
               <td style={{...tdStyle, fontWeight: 'bold'}}>{T.days[i]}</td>
               <td style={tdStyle}>{row.date}</td>
-              <td style={tdStyle}>{row.dakhilNet.toFixed(2)}</td>
-              <td style={tdStyle}>{row.dakhilCash.toFixed(2)}</td>
-              <td style={tdStyle}>{row.nasiriyaNet.toFixed(2)}</td>
-              <td style={tdStyle}>{row.nasiriyaCash.toFixed(2)}</td>
+              <td style={tdStyle}>{row.dakhilNet > 0 ? row.dakhilNet.toFixed(2) : '-'}</td>
+              <td style={tdStyle}>{row.dakhilCash > 0 ? row.dakhilCash.toFixed(2) : '-'}</td>
+              <td style={tdStyle}>{row.nasiriyaNet > 0 ? row.nasiriyaNet.toFixed(2) : '-'}</td>
+              <td style={tdStyle}>{row.nasiriyaCash > 0 ? row.nasiriyaCash.toFixed(2) : '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -140,30 +141,24 @@ function SalesMovementContent() {
         </tfoot>
       </table>
 
-      {/* جدول الملخص السفلي (مطابق للصورة 5) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxWidth: '800px', margin: '0 auto' }}>
-        
-        <div style={summaryRowStyle('#f3e8ff')}> {/* بنفسجي فاتح */}
+        <div style={summaryRowStyle('#f3e8ff')}>
           <div style={summaryLabelStyle}>{T.totalNetwork}</div>
           <div style={summaryValueStyle}>{totalNetwork.toFixed(2)}</div>
         </div>
-
         <div style={summaryRowStyle('#f3e8ff')}>
           <div style={summaryLabelStyle}>{T.totalCash}</div>
           <div style={summaryValueStyle}>{totalCash.toFixed(2)}</div>
         </div>
-
-        <div style={summaryRowStyle('#fef08a')}> {/* أصفر */}
+        <div style={summaryRowStyle('#fef08a')}>
           <div style={summaryLabelStyle}>{T.totalDakhil}</div>
           <div style={summaryValueStyle}>{totalDakhil.toFixed(2)}</div>
         </div>
-
         <div style={summaryRowStyle('#fef08a')}>
           <div style={summaryLabelStyle}>{T.totalNasiriya}</div>
           <div style={summaryValueStyle}>{totalNasiriya.toFixed(2)}</div>
         </div>
 
-        {/* قسم سحب الكاش (بيانات افتراضية بناءً على الصورة) */}
         <div style={{ marginTop: '20px', border: '1px solid #ccc', borderRadius: '8px', overflow: 'hidden' }}>
           <div style={{ background: '#e5e7eb', padding: '10px', fontWeight: 'bold', textAlign: 'center' }}>{T.withdrawals}</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -178,7 +173,6 @@ function SalesMovementContent() {
           </table>
         </div>
       </div>
-
     </div>
   )
 }
@@ -195,13 +189,7 @@ const thStyle: React.CSSProperties = { padding: '12px', border: '1px solid #1e40
 const tdStyle: React.CSSProperties = { padding: '10px', border: '1px solid #e5e7eb', textAlign: 'center' }
 
 const summaryRowStyle = (bgColor: string): React.CSSProperties => ({
-  display: 'flex',
-  justifyContent: 'space-between',
-  padding: '10px 20px',
-  background: bgColor,
-  fontWeight: 'bold',
-  borderRadius: '4px'
+  display: 'flex', justifyContent: 'space-between', padding: '10px 20px', background: bgColor, fontWeight: 'bold', borderRadius: '4px'
 })
-
 const summaryLabelStyle: React.CSSProperties = { fontSize: '14px', color: '#111827' }
 const summaryValueStyle: React.CSSProperties = { fontSize: '14px', color: '#111827' }
