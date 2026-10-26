@@ -9,9 +9,13 @@ const MENU = [
   { href: '/dashboard', label: 'الرئيسية', icon: '🏠' },
   { href: '/dashboard/daily-receipts?type=vegetable', label: 'استلام خضار', icon: '🥬' },
   { href: '/dashboard/daily-receipts?type=fruit', label: 'استلام فواكه', icon: '🍎' },
+  { href: '/dashboard/daily-receipts?type=paper', label: 'استلام ورقيات', icon: '📄' },
   { href: '/dashboard/worker-confirm', label: 'تأكيد استلام العمال', icon: '👷‍♂️' },
-  { href: '/dashboard/worker-approval', label: 'اعتماد الإدارة', icon: '✅' }, // أضفنا هذا
+  { href: '/dashboard/worker-approval', label: 'اعتماد الإدارة', icon: '✅' },
   { href: '/dashboard/revenues', label: 'الإيرادات اليومية', icon: '💰' },
+  { href: '/dashboard/purchases', label: 'فواتير المشتريات', icon: '🧾' },
+  { href: '/dashboard/transfers', label: 'التحويلات', icon: '🔄' },
+  { href: '/dashboard/debts', label: 'المديونيات', icon: '📋' },
   { href: '/dashboard/reports/weekly', label: 'التقرير الأسبوعي', icon: '📊' },
   { href: '/dashboard/reports/sales-movement', label: 'حركة المبيعات', icon: '📈' },
   { href: '/dashboard/reports/jaber', label: 'تقرير جابر', icon: '👨‍💼' },
@@ -55,6 +59,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Arial' }}>
+      
+      {/* Header للجوال */}
       {!isDesktop && (
         <header style={{ background: '#065f46', color: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '20px', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer' }}>☰</button>
@@ -71,6 +77,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 998 }} />
       )}
 
+      {/* القائمة الجانبية */}
       <aside style={{
         width: '260px', background: '#065f46', color: 'white', position: 'fixed',
         right: isSidebarVisible ? 0 : -280, top: 0, bottom: 0, overflowY: 'auto',
@@ -88,7 +95,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <nav style={{ padding: '10px', flex: 1 }}>
           {MENU.map((item) => {
-            const active = pathname === item.href
+            const active = pathname === item.href.split('?')[0] // للتعامل مع الروابط التي تحتوي على بارامترات
             return (
               <Link key={item.href} href={item.href} style={{
                 display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 15px',
@@ -112,6 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
+      {/* المحتوى */}
       <main style={{ padding: '20px', minHeight: '100vh', marginRight: isDesktop ? '260px' : '0' }}>
         {children}
       </main>
