@@ -11,28 +11,15 @@ const T = {
   editTitle: 'تعديل الإيراد',
   print: '🖨️ طباعة',
   export: '📥 تصدير Excel',
-  date: 'التاريخ',
-  branch: 'الفرع',
-  network: 'الشبكة (البنك)',
-  cash: 'الكاش',
-  expenses: 'المصروفات',
-  invoices: 'الفواتير',
-  totalSales: 'صافي المبيعات',
-  notes: 'ملاحظات',
-  save: 'حفظ الإيراد',
-  update: 'تحديث الإيراد',
-  cancel: 'إلغاء',
-  last20: 'آخر 20 إيراد',
-  loading: 'جاري التحميل...',
-  success: 'تم الحفظ بنجاح!',
-  updateSuccess: 'تم التحديث بنجاح!',
-  deleteSuccess: 'تم الحذف بنجاح!',
-  errorDuplicate: 'يوجد إيراد مسجل لهذا الفرع في هذا التاريخ مسبقاً!',
-  confirmDelete: 'هل أنت متأكد من حذف هذا الإيراد؟ (سيتم تسجيل العملية في سجل التعديلات)',
-  noData: 'لا توجد إيرادات مسجلة',
-  tableDate: 'التاريخ', tableBranch: 'الفرع', tableNetwork: 'الشبكة', tableCash: 'الكاش',
-  tableExpenses: 'المصروفات', tableInvoices: 'الفواتير', tableTotal: 'الصافي',
-  actions: 'الإجراءات', edit: 'تعديل', delete: 'حذف'
+  date: 'التاريخ', branch: 'الفرع', network: 'الشبكة (البنك)', cash: 'الكاش',
+  expenses: 'المصروفات', invoices: 'الفواتير', totalSales: 'صافي المبيعات', notes: 'ملاحظات',
+  save: 'حفظ الإيراد', update: 'تحديث الإيراد', cancel: 'إلغاء', last20: 'آخر 20 إيراد',
+  loading: 'جاري التحميل...', success: 'تم الحفظ بنجاح!', updateSuccess: 'تم التحديث بنجاح!',
+  deleteSuccess: 'تم الحذف بنجاح!', errorDuplicate: 'يوجد إيراد مسجل لهذا الفرع في هذا التاريخ مسبقاً!',
+  confirmDelete: 'هل أنت متأكد من حذف هذا الإيراد؟',
+  noData: 'لا توجد إيرادات مسجلة', tableDate: 'التاريخ', tableBranch: 'الفرع',
+  tableNetwork: 'الشبكة', tableCash: 'الكاش', tableExpenses: 'المصروفات', tableInvoices: 'الفواتير',
+  tableTotal: 'الصافي', actions: 'الإجراءات', edit: 'تعديل', delete: 'حذف'
 }
 
 function RevenuesContent() {
@@ -50,37 +37,54 @@ function RevenuesContent() {
     branch_id: '', network_amount: '', cash_amount: '', expenses: '', invoices: '', notes: '',
   })
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    let isMounted = true;
+    // مؤقت إنقاذ: إذا تأخر السيرفر، نفتح الشاشة قسرياً بعد 4 ثواني
+    const timer = setTimeout(() => {
+      if (isMounted && loading) setLoading(false)
+    }, 4000)
 
-  async function loadData() {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    async function loadData() {
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!session) {
+          window.location.href = '/' // طرد لصفحة الدخول
+          return
+        }
 
-    const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
-    if (!userData) return
-    setCompanyId(userData.company_id)
+        const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', session.user.id).single()
+        if (!userData) return
+        if (isMounted) setCompanyId(userData.company_id)
 
-    const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true).eq('company_id', userData.company_id).order('name')
-    setBranches(br || [])
+        const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true).eq('company_id', userData.company_id).order('name')
+        if (isMounted) setBranches(br || [])
 
-    const { data: rev } = await supabase
-      .from('revenues')
-      .select(`id, revenue_date, network_amount, cash_amount, expenses, invoices, total_sales, notes, branch_id, branches(name)`)
-      .eq('company_id', userData.company_id)
-      .order('created_at', { ascending: false })
-      .limit(20)
+        const { data: rev } = await supabase
+          .from('revenues')
+          .select(`id, revenue_date, network_amount, cash_amount, expenses, invoices, total_sales, notes, branch_id, branches(name)`)
+          .eq('company_id', userData.company_id)
+          .order('created_at', { ascending: false })
+          .limit(20)
+        
+        if (isMounted) setRevenues(rev || [])
+      } catch (error) {
+        console.error('Error loading revenues:', error)
+      } finally {
+        clearTimeout(timer) // إيقاف المؤقت
+        if (isMounted) setLoading(false) // إغلاق التحميل مهما كان
+      }
+    }
     
-    setRevenues(rev || [])
-    setLoading(false)
-  }
+    loadData()
+    return () => { isMounted = false; clearTimeout(timer) }
+  }, [])
 
   const network = parseFloat(form.network_amount) || 0
   const cash = parseFloat(form.cash_amount) || 0
   const expenses = parseFloat(form.expenses) || 0
   const invoices = parseFloat(form.invoices) || 0
-  
-  // المعادلة المحاسبية الصحيحة: (الشبكة + الكاش) - (المصروفات + الفواتير)
   const totalSales = (network + cash) - (expenses + invoices)
 
   async function handleSave(e: React.FormEvent) {
@@ -92,16 +96,14 @@ function RevenuesContent() {
       setMessage('الرجاء اختيار الفرع'); setSaving(false); return
     }
 
-    // التحقق من التكرار (نفس الفرع ونفس التاريخ)
     let duplicateQuery = supabase.from('revenues').select('id').eq('company_id', companyId).eq('branch_id', form.branch_id).eq('revenue_date', form.revenue_date)
     if (editingId) duplicateQuery = duplicateQuery.neq('id', editingId)
     
     const { data: existing } = await duplicateQuery.maybeSingle()
     if (existing) { setMessage(T.errorDuplicate); setSaving(false); return }
 
-    // جلب بيانات المستخدم لتسجيلها في سجل التدقيق
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: userInfo } = await supabase.from('users').select('id, full_name').eq('auth_id', user?.id).single()
+    const { data: { session } } = await supabase.auth.getSession()
+    const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', session?.user.id).single()
 
     const record = {
       company_id: companyId, branch_id: form.branch_id, revenue_date: form.revenue_date,
@@ -110,25 +112,19 @@ function RevenuesContent() {
     }
 
     if (editingId) {
-      // 1. جلب القيمة القديمة قبل التعديل
       const oldRecord = revenues.find(r => r.id === editingId)
-      
-      // 2. تحديث السجل
       const { error } = await supabase.from('revenues').update(record).eq('id', editingId)
       if (error) { setMessage('خطأ: ' + error.message); setSaving(false); return }
       
-      // 3. تسجيل التعديل في سجل التدقيق
       await supabase.from('audit_logs').insert({
         company_id: companyId, user_id: userInfo?.id, action: 'تعديل إيراد', table_name: 'revenues',
         record_id: editingId, old_values: oldRecord, new_values: record
       })
       setMessage(T.updateSuccess)
     } else {
-      // 1. إضافة السجل الجديد وجلب رقمه
       const { data: insertedData, error } = await supabase.from('revenues').insert(record).select()
       if (error) { setMessage('خطأ: ' + error.message); setSaving(false); return }
       
-      // 2. تسجيل الإضافة في سجل التدقيق
       await supabase.from('audit_logs').insert({
         company_id: companyId, user_id: userInfo?.id, action: 'إضافة إيراد جديد', table_name: 'revenues',
         record_id: insertedData[0].id, new_values: record
@@ -137,46 +133,30 @@ function RevenuesContent() {
     }
 
     resetForm()
-    await loadData()
+    // إعادة تحميل البيانات يدوياً بعد الحفظ
+    const { data: rev } = await supabase.from('revenues').select(`id, revenue_date, network_amount, cash_amount, expenses, invoices, total_sales, notes, branch_id, branches(name)`).eq('company_id', companyId).order('created_at', { ascending: false }).limit(20)
+    setRevenues(rev || [])
     setSaving(false)
   }
 
-     async function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!window.confirm(T.confirmDelete)) return
-    
     const supabase = createClient()
     
     const oldRecord = revenues.find(r => r.id === id)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', user?.id).single()
+    const { data: { session } } = await supabase.auth.getSession()
+    const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', session?.user.id).single()
 
-    try {
-      // 1. تنفيذ الحذف
-    const { error, count } = await supabase.from('revenues').delete({ count: 'exact' }).eq('id', id)
-     if (error) { alert('خطأ: ' + error.message); return }
-     if (count === 0) { alert('فشل الحذف: صلاحيات قاعدة البيانات تمنع الحذف.'); return }
+    const { error } = await supabase.from('revenues').delete().eq('id', id)
+    if (error) { alert('خطأ: ' + error.message); return }
+    
+    await supabase.from('audit_logs').insert({
+      company_id: companyId, user_id: userInfo?.id, action: 'حذف إيراد', table_name: 'revenues',
+      record_id: id, old_values: oldRecord
+    })
 
-      // 2. تسجيل الحذف في سجل التدقيق (مع فحص الأخطاء)
-      const { error: logError } = await supabase.from('audit_logs').insert({
-        company_id: companyId, 
-        user_id: userInfo?.id, 
-        action: 'حذف إيراد', 
-        table_name: 'revenues',
-        record_id: id, 
-        old_values: oldRecord
-      })
-
-      if (logError) {
-        // إذا فشل السجل، نظهر تنبيه ولكن نعتبر الحذف ناجحاً
-        alert('تم الحذف، ولكن فشل تسجيل الحركة في السجل: ' + logError.message)
-      }
-
-      setMessage(T.deleteSuccess)
-      await loadData()
-
-    } catch (err: any) {
-      alert('فشل الحذف من قاعدة البيانات! السبب: ' + err.message)
-    }
+    setMessage(T.deleteSuccess)
+    setRevenues(prev => prev.filter(r => r.id !== id)) // حذف فوري من الشاشة
   }
 
   const handleEditClick = (row: any) => {
@@ -196,13 +176,8 @@ function RevenuesContent() {
 
   const handleExport = () => {
     const excelData = revenues.map(r => ({
-      'التاريخ': r.revenue_date,
-      'الفرع': (r.branches as any)?.name || '',
-      'الشبكة': r.network_amount,
-      'الكاش': r.cash_amount,
-      'المصروفات': r.expenses,
-      'الفواتير': r.invoices,
-      'صافي المبيعات': r.total_sales
+      'التاريخ': r.revenue_date, 'الفرع': (r.branches as any)?.name || '',
+      'الشبكة': r.network_amount, 'الكاش': r.cash_amount, 'المصروفات': r.expenses, 'الفواتير': r.invoices, 'صافي المبيعات': r.total_sales
     }))
     const ws = XLSX.utils.json_to_sheet(excelData)
     const wb = XLSX.utils.book_new()
@@ -210,7 +185,7 @@ function RevenuesContent() {
     XLSX.writeFile(wb, `الإيرادات_اليومية_${new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center', color: '#059669' }}>{T.loading}</div>
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center', color: '#059669', fontSize: '18px' }}>{T.loading}</div>
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl' }}>
@@ -232,20 +207,12 @@ function RevenuesContent() {
         </div>
       )}
 
-      {/* نموذج الإدخال / التعديل */}
       <div className="no-print" style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '25px', border: editingId ? '2px solid #3b82f6' : 'none' }}>
-        <h2 style={{ margin: '0 0 15px', color: editingId ? '#1d4ed8' : '#065f46', fontSize: '18px' }}>
-          {editingId ? T.editTitle : T.addNew}
-        </h2>
+        <h2 style={{ margin: '0 0 15px', color: editingId ? '#1d4ed8' : '#065f46', fontSize: '18px' }}>{editingId ? T.editTitle : T.addNew}</h2>
         <form onSubmit={handleSave}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
             <div><label style={labelStyle}>{T.date}</label><input type="date" value={form.revenue_date} onChange={e => setForm({...form, revenue_date: e.target.value})} required style={inputStyle} /></div>
-            <div><label style={labelStyle}>{T.branch}</label>
-              <select value={form.branch_id} onChange={e => setForm({...form, branch_id: e.target.value})} required style={inputStyle}>
-                <option value="">اختر الفرع</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </div>
+            <div><label style={labelStyle}>{T.branch}</label><select value={form.branch_id} onChange={e => setForm({...form, branch_id: e.target.value})} required style={inputStyle}><option value="">اختر الفرع</option>{branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
             <div><label style={labelStyle}>{T.network}</label><input type="number" step="0.01" value={form.network_amount} onChange={e => setForm({...form, network_amount: e.target.value})} style={inputStyle} /></div>
             <div><label style={labelStyle}>{T.cash}</label><input type="number" step="0.01" value={form.cash_amount} onChange={e => setForm({...form, cash_amount: e.target.value})} style={inputStyle} /></div>
             <div><label style={labelStyle}>{T.expenses}</label><input type="number" step="0.01" value={form.expenses} onChange={e => setForm({...form, expenses: e.target.value})} style={inputStyle} /></div>
@@ -258,21 +225,14 @@ function RevenuesContent() {
             <button type="submit" disabled={saving} style={{ padding: '12px 30px', background: saving ? '#9ca3af' : (editingId ? '#3b82f6' : '#059669'), color: 'white', border: 'none', borderRadius: '8px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
               {saving ? 'جاري الحفظ...' : (editingId ? T.update : T.save)}
             </button>
-            {editingId && (
-              <button type="button" onClick={resetForm} style={{ padding: '12px 20px', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                {T.cancel}
-              </button>
-            )}
+            {editingId && <button type="button" onClick={resetForm} style={{ padding: '12px 20px', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>{T.cancel}</button>}
           </div>
         </form>
       </div>
 
-      {/* جدول العرض */}
       <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h2 style={{ margin: '0 0 15px', color: '#065f46', fontSize: '18px' }}>{T.last20}</h2>
-        {revenues.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#6b7280' }}>{T.noData}</p>
-        ) : (
+        {revenues.length === 0 ? <p style={{ textAlign: 'center', color: '#6b7280' }}>{T.noData}</p> : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'center' }}>
               <thead>
@@ -305,22 +265,13 @@ function RevenuesContent() {
           </div>
         )}
       </div>
-
-      {/* تنسيقات الطباعة */}
-      <style jsx global>{`
-        @media print {
-          aside, header, .no-print { display: none !important; }
-          main { margin: 0 !important; padding: 0 !important; }
-          body { background: white !important; }
-          table { font-size: 11px !important; }
-        }
-      `}</style>
+      <style jsx global>{`@media print { aside, header, .no-print { display: none !important; } main { margin: 0 !important; padding: 0 !important; } body { background: white !important; } }`}</style>
     </div>
   )
 }
 
 export default function RevenuesPage() {
-  return <Suspense fallback={<div>جاري التحميل...</div>}><RevenuesContent /></Suspense>
+  return <Suspense fallback={<div style={{ padding: '50px', textAlign: 'center' }}>جاري التحميل...</div>}><RevenuesContent /></Suspense>
 }
 
 const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }
