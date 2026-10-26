@@ -8,6 +8,7 @@ const T = {
   titleVeg: 'استلام الخضار اليومي',
   titleFruit: 'استلام الفواكه اليومي',
   titlePaper: 'استلام الورقيات اليومي',
+  print: '🖨️ طباعة الكشف',
   date: 'التاريخ',
   supplier: 'الموردين',
   item: 'اسم الصنف',
@@ -25,7 +26,7 @@ const T = {
   post: 'ترحيل إلى فواتير المشتريات',
   addRow: '+ إضافة صنف',
   success: 'تم حفظ الاستلام بنجاح!',
-  posted: 'تم الترحيل إلى فواتير المشتريات بنجاح!',
+  posted: 'تم الترحيل بنجاح!',
   footerTotal: 'الإجمالي الكلي',
   vat: 'ضريبة القيمة المضافة (15%)',
   grandTotal: 'الإجمالي الكلي بعد الضريبة',
@@ -41,7 +42,6 @@ function DailyReceiptsContent() {
   const [message, setMessage] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [isTaxEnabled, setIsTaxEnabled] = useState(type === 'fruit')
-  
   const [branches, setBranches] = useState<any[]>([])
   const [savedReceiptId, setSavedReceiptId] = useState<string | null>(null)
 
@@ -63,74 +63,38 @@ function DailyReceiptsContent() {
     newRows[index][field] = value
     setRows(newRows)
   }
-    // دالة استقبال البيانات المنسوخة من الإكسل (ذكية وتتجاهل أعمدة الإجماليات)
+
   const handlePaste = (e: React.ClipboardEvent<HTMLTableElement>) => {
     e.preventDefault()
     const clipboardData = e.clipboardData.getData('Text')
     const pastedRows = clipboardData.split(/\r?\n/).filter(row => row.trim() !== '')
     
     const newRows: any[] = []
-    
     pastedRows.forEach((rowStr) => {
       const cols = rowStr.split('\t')
-      
-      // التحقق من أن الصف يحتوي على بيانات (على الأقل 3 أعمدة)
-      if (cols.length >= 3) {
-        // الترتيب المتوقع من إكسل الزبون (14 عمود):
-        // [0] التاريخ، [1] المورد، [2] الصنف، [3] الكمية الكلية، [4] السعر، [5] الإجمالي، 
-        // [6] كمية الدخل، [7] إجمالي الدخل، [8] كمية الناصرية، [9] إجمالي الناصرية، 
-        // [10] كمية التاج، [11] إجمالي التاج، [12] كمية الرابع، [13] إجمالي الرابع.
-        
-        // إذا كان عدد الأعمدة 14 أو أكثر (نسخ الجدول كاملاً)
-        if (cols.length >= 13) {
-          newRows.push({
-            supplier_name: cols[1] || '',
-            product_name: cols[2] || '',
-            price: Number(cols[4]) || 0,
-            dakhil_qty: Number(cols[6]) || 0,
-            nasiriya_qty: Number(cols[8]) || 0,
-            taj_qty: Number(cols[10]) || 0,
-            fourth_qty: Number(cols[12]) || 0,
-          })
-        } 
-        // إذا كان عدد الأعمدة 7 فقط (نسخ الأعمدة الأساسية فقط)
-        else if (cols.length >= 7) {
-           newRows.push({
-            supplier_name: cols[0] || '',
-            product_name: cols[1] || '',
-            price: Number(cols[2]) || 0,
-            dakhil_qty: Number(cols[3]) || 0,
-            nasiriya_qty: Number(cols[4]) || 0,
-            taj_qty: Number(cols[5]) || 0,
-            fourth_qty: Number(cols[6]) || 0,
-          })
-        }
+      if (cols.length >= 7) {
+        newRows.push({
+          supplier_name: cols[0] || '', product_name: cols[1] || '',
+          price: Number(cols[2]) || 0, dakhil_qty: Number(cols[3]) || 0,
+          nasiriya_qty: Number(cols[4]) || 0, taj_qty: Number(cols[5]) || 0, fourth_qty: Number(cols[6]) || 0,
+        })
       }
     })
 
     if (newRows.length > 0) {
       setRows(newRows)
-      alert(`تم لصق ${newRows.length} صنف بنجاح! يرجى مراجعة الأسعار قبل الحفظ.`)
-    } else {
-      alert('تأكد من نسخ الصفوف بالشكل الصحيح من الإكسل.')
+      alert(`تم لصق ${newRows.length} صنف بنجاح!`)
     }
   }
-  const addRow = () => {
-    setRows([...rows, { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
-  }
 
-  const getRowTotalQty = (row: any) => {
-    return (Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0)
-  }
+  const addRow = () => setRows([...rows, { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
 
-  const getRowTotalPrice = (row: any) => {
-    return getRowTotalQty(row) * (Number(row.price) || 0)
-  }
+  const getRowTotalQty = (row: any) => (Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0)
+  const getRowTotalPrice = (row: any) => getRowTotalQty(row) * (Number(row.price) || 0)
 
   const totals = rows.reduce((acc, row) => {
     const rowQty = getRowTotalQty(row)
     const rowPrice = getRowTotalPrice(row)
-    
     return {
       dakhil_qty: acc.dakhil_qty + (Number(row.dakhil_qty) || 0),
       dakhil_total: acc.dakhil_total + ((Number(row.dakhil_qty) || 0) * (Number(row.price) || 0)),
@@ -149,15 +113,12 @@ function DailyReceiptsContent() {
   const grandTotal = totals.total_price + taxAmount
 
   async function handleSave() {
-    setSaving(true)
-    setMessage('')
-    setSavedReceiptId(null)
+    setSaving(true); setMessage(''); setSavedReceiptId(null);
     const supabase = createClient()
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('User not found')
-      
       const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
       if (!userData) throw new Error('Company not found')
 
@@ -166,39 +127,28 @@ function DailyReceiptsContent() {
       }).select('id').single()
 
       if (receiptError) throw receiptError
-      setSavedReceiptId(receipt.id) // حفظ المعرف لاستخدامه في الترحيل
+      setSavedReceiptId(receipt.id)
 
       for (const row of rows) {
         if (!row.product_name) continue;
         const rowTotalQty = getRowTotalQty(row)
-        
         const { data: item, error: itemError } = await supabase.from('daily_receipt_items').insert({
-          receipt_id: receipt.id,
-          manual_product_name: row.product_name,
-          manual_supplier_name: row.supplier_name,
-          total_qty: rowTotalQty,
-          unit_price: Number(row.price) || 0
+          receipt_id: receipt.id, manual_product_name: row.product_name, manual_supplier_name: row.supplier_name,
+          total_qty: rowTotalQty, unit_price: Number(row.price) || 0
         }).select('id').single()
 
         if (itemError) throw itemError
-
         const dist = [
-          { qty: row.dakhil_qty, nameMatch: 'الدخل' },
-          { qty: row.nasiriya_qty, nameMatch: 'الناصرية' },
-          { qty: row.taj_qty, nameMatch: 'التاج' },
-          { qty: row.fourth_qty, nameMatch: 'الرابع' }
+          { qty: row.dakhil_qty, nameMatch: 'الدخل' }, { qty: row.nasiriya_qty, nameMatch: 'الناصرية' },
+          { qty: row.taj_qty, nameMatch: 'التاج' }, { qty: row.fourth_qty, nameMatch: 'الرابع' }
         ]
-
         for (const d of dist) {
           if (Number(d.qty) > 0) {
             const branchId = branches.find(b => b.name.includes(d.nameMatch))?.id
-            if (branchId) {
-              await supabase.from('receipt_branch_allocations').insert({ receipt_item_id: item.id, branch_id: branchId, sent_qty: Number(d.qty) })
-            }
+            if (branchId) await supabase.from('receipt_branch_allocations').insert({ receipt_item_id: item.id, branch_id: branchId, sent_qty: Number(d.qty) })
           }
         }
       }
-
       setMessage(T.success)
     } catch (err: any) {
       setMessage(T.error + ': ' + err.message)
@@ -211,16 +161,12 @@ function DailyReceiptsContent() {
     if (!savedReceiptId) return
     setPosting(true)
     const supabase = createClient()
-
     try {
-      // 1. جلب بيانات الاستلام المحفوظ
       const { data: items } = await supabase.from('daily_receipt_items').select('*').eq('receipt_id', savedReceiptId)
       if (!items || items.length === 0) throw new Error('لا توجد أصناف')
-
       const { data: { user } } = await supabase.auth.getUser()
       const { data: userData } = await supabase.from('users').select('company_id, id').eq('auth_id', user!.id).single()
 
-      // 2. تجميع الأصناف حسب المورد لإنشاء فاتورة لكل مورد
       const itemsBySupplier: any = {}
       items.forEach(item => {
         const supplier = item.manual_supplier_name || 'مورد غير محدد'
@@ -228,38 +174,22 @@ function DailyReceiptsContent() {
         itemsBySupplier[supplier].push(item)
       })
 
-      // 3. إدخال الفواتير في جدول purchases
       for (const supplierName in itemsBySupplier) {
-        const supplierItems = itemsBySupplier[supplierName]
-        
-        for (const item of supplierItems) {
+        for (const item of itemsBySupplier[supplierName]) {
           const total = (Number(item.total_qty) || 0) * (Number(item.unit_price) || 0)
           const tax = isTaxEnabled ? total * 0.15 : 0
-          
           await supabase.from('purchases').insert({
-            company_id: userData!.company_id,
-            branch_id: null, // الفاتورة تخص الإدارة وتم توزيعها لاحقاً
-            purchase_date: date,
-            manual_product_name: item.manual_product_name,
-            manual_supplier_name: supplierName,
-            qty: item.total_qty,
-            unit_price: item.unit_price,
-            total: total,
-            tax_amount: tax,
-            total_with_tax: total + tax,
-            created_by: userData!.id,
-            daily_receipt_id: savedReceiptId
+            company_id: userData!.company_id, branch_id: null, purchase_date: date,
+            manual_product_name: item.manual_product_name, manual_supplier_name: supplierName,
+            qty: item.total_qty, unit_price: item.unit_price, total: total,
+            tax_amount: tax, total_with_tax: total + tax, created_by: userData!.id, daily_receipt_id: savedReceiptId
           })
         }
       }
-
-      // 4. تحديث حالة السند لمنع الترحيل المزدوج
       await supabase.from('daily_receipts').update({ is_posted_to_purchases: true }).eq('id', savedReceiptId)
-
       setMessage(T.posted)
       setRows([{ product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
-      setSavedReceiptId(null) // إخفاء زر الترحيل بعد النجاح
-
+      setSavedReceiptId(null)
     } catch (err: any) {
       setMessage(T.error + ': ' + err.message)
     } finally {
@@ -272,7 +202,7 @@ function DailyReceiptsContent() {
   return (
     <div style={{ padding: '10px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
       
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: 'white', padding: '10px 15px', borderRadius: '10px' }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: 'white', padding: '10px 15px', borderRadius: '10px' }}>
         <h1 style={{ margin: 0, color: '#065f46', fontSize: '22px' }}>{getTitle()}</h1>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           {type === 'fruit' && (
@@ -282,32 +212,25 @@ function DailyReceiptsContent() {
             </label>
           )}
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '6px' }} />
+          <button onClick={() => window.print()} style={{ padding: '8px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+            {T.print}
+          </button>
         </div>
       </div>
 
-      {message && (
-        <div style={{ padding: '10px', marginBottom: '15px', borderRadius: '6px', background: message.includes('بنجاح') ? '#d1fae5' : '#fee2e2', color: message.includes('بنجاح') ? '#065f46' : '#991b1b', fontWeight: 'bold' }}>{message}</div>
-      )}
+      {message && <div className="no-print" style={{ padding: '10px', marginBottom: '15px', borderRadius: '6px', background: message.includes('بنجاح') ? '#d1fae5' : '#fee2e2', color: message.includes('بنجاح') ? '#065f46' : '#991b1b', fontWeight: 'bold' }}>{message}</div>}
 
-        <table onPaste={handlePaste} style={{ width: '100%', borderCollapse: 'collapse', background: 'white', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap' }}>
+      <table onPaste={handlePaste} style={{ width: '100%', borderCollapse: 'collapse', background: 'white', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap' }}>
         <thead>
           <tr style={{ background: '#0f172a', color: 'white' }}>
-            <th rowSpan={2} style={thStyle}>{T.date}</th>
-            <th rowSpan={2} style={thStyle}>{T.supplier}</th>
-            <th rowSpan={2} style={thStyle}>{T.item}</th>
-            <th rowSpan={2} style={thStyle}>{T.totalQty}</th>
-            <th rowSpan={2} style={thStyle}>{T.price}</th>
-            <th rowSpan={2} style={thStyle}>{T.totalPrice}</th>
-            <th colSpan={2} style={thStyle}>{T.brDakhil}</th>
-            <th colSpan={2} style={thStyle}>{T.brNasiriya}</th>
-            <th colSpan={2} style={thStyle}>{T.brTaj}</th>
-            <th colSpan={2} style={thStyle}>{T.brFourth}</th>
+            <th rowSpan={2} style={thStyle}>{T.date}</th><th rowSpan={2} style={thStyle}>{T.supplier}</th><th rowSpan={2} style={thStyle}>{T.item}</th>
+            <th rowSpan={2} style={thStyle}>{T.totalQty}</th><th rowSpan={2} style={thStyle}>{T.price}</th><th rowSpan={2} style={thStyle}>{T.totalPrice}</th>
+            <th colSpan={2} style={thStyle}>{T.brDakhil}</th><th colSpan={2} style={thStyle}>{T.brNasiriya}</th>
+            <th colSpan={2} style={thStyle}>{T.brTaj}</th><th colSpan={2} style={thStyle}>{T.brFourth}</th>
           </tr>
           <tr style={{ background: '#1e3a8a', color: 'white' }}>
-            <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
-            <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
-            <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
-            <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
+            <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th><th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
+            <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th><th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
           </tr>
         </thead>
         <tbody>
@@ -318,12 +241,11 @@ function DailyReceiptsContent() {
             const nasiriyaTotal = (Number(row.nasiriya_qty) || 0) * (Number(row.price) || 0)
             const tajTotal = (Number(row.taj_qty) || 0) * (Number(row.price) || 0)
             const fourthTotal = (Number(row.fourth_qty) || 0) * (Number(row.price) || 0)
-
             return (
               <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={tdStyle}>{date}</td>
-                <td style={tdStyle}><input type="text" placeholder="اكتب المورد..." value={row.supplier_name} onChange={(e) => handleRowChange(index, 'supplier_name', e.target.value)} style={inputStyle} /></td>
-                <td style={tdStyle}><input type="text" placeholder="اكتب الصنف..." value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} /></td>
+                <td style={tdStyle}><input type="text" value={row.supplier_name} onChange={(e) => handleRowChange(index, 'supplier_name', e.target.value)} style={inputStyle} /></td>
+                <td style={tdStyle}><input type="text" value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} /></td>
                 <td style={{...tdStyle, fontWeight: 'bold', background: '#f3f4f6'}}>{rowQty}</td>
                 <td style={tdStyle}><input type="number" value={row.price || ''} onChange={(e) => handleRowChange(index, 'price', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={{...tdStyle, fontWeight: 'bold', color: '#065f46'}}>{rowTotalPrice.toFixed(2)}</td>
@@ -342,55 +264,49 @@ function DailyReceiptsContent() {
         <tfoot>
           <tr style={{ background: '#f3f4f6', fontWeight: 'bold', color: '#111827', fontSize: '14px' }}>
             <td colSpan={3} style={{ padding: '10px', textAlign: 'center' }}>{T.footerTotal}</td>
-            <td style={tdStyle}>{totals.total_qty}</td>
-            <td style={tdStyle}>-</td>
-            <td style={tdStyle}>{totals.total_price.toFixed(2)}</td>
-            <td style={tdStyle}>{totals.dakhil_qty}</td>
-            <td style={tdStyle}>{totals.dakhil_total.toFixed(2)}</td>
-            <td style={tdStyle}>{totals.nasiriya_qty}</td>
-            <td style={tdStyle}>{totals.nasiriya_total.toFixed(2)}</td>
-            <td style={tdStyle}>{totals.taj_qty}</td>
-            <td style={tdStyle}>{totals.taj_total.toFixed(2)}</td>
-            <td style={tdStyle}>{totals.fourth_qty}</td>
-            <td style={tdStyle}>{totals.fourth_total.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.total_qty}</td><td style={tdStyle}>-</td><td style={tdStyle}>{totals.total_price.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.dakhil_qty}</td><td style={tdStyle}>{totals.dakhil_total.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.nasiriya_qty}</td><td style={tdStyle}>{totals.nasiriya_total.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.taj_qty}</td><td style={tdStyle}>{totals.taj_total.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.fourth_qty}</td><td style={tdStyle}>{totals.fourth_total.toFixed(2)}</td>
           </tr>
           {type === 'fruit' && isTaxEnabled && (
             <>
               <tr style={{ background: '#fef3c7', fontWeight: 'bold', color: '#92400e' }}>
-                <td colSpan={5} style={{ padding: '10px', textAlign: 'center' }}>{T.vat}</td>
-                <td colSpan={9} style={{ padding: '10px', textAlign: 'center' }}>{taxAmount.toFixed(2)}</td>
+                <td colSpan={5} style={{ padding: '10px', textAlign: 'center' }}>{T.vat}</td><td colSpan={9} style={{ padding: '10px', textAlign: 'center' }}>{taxAmount.toFixed(2)}</td>
               </tr>
               <tr style={{ background: '#dcfce7', fontWeight: 'bold', color: '#166534' }}>
-                <td colSpan={5} style={{ padding: '10px', textAlign: 'center' }}>{T.grandTotal}</td>
-                <td colSpan={9} style={{ padding: '10px', textAlign: 'center' }}>{grandTotal.toFixed(2)}</td>
+                <td colSpan={5} style={{ padding: '10px', textAlign: 'center' }}>{T.grandTotal}</td><td colSpan={9} style={{ padding: '10px', textAlign: 'center' }}>{grandTotal.toFixed(2)}</td>
               </tr>
             </>
           )}
         </tfoot>
       </table>
 
-      <div style={{ marginTop: '15px', display: 'flex', gap: '15px' }}>
+      <div className="no-print" style={{ marginTop: '15px', display: 'flex', gap: '15px' }}>
         <button onClick={addRow} style={{ padding: '10px 20px', background: '#f3f4f6', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{T.addRow}</button>
         <button onClick={handleSave} disabled={saving} style={{ padding: '10px 30px', background: saving ? '#9ca3af' : '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{saving ? 'جاري الحفظ...' : T.save}</button>
-        
-        {/* زر الترحيل يظهر فقط بعد الحفظ الناجح */}
         {savedReceiptId && (
           <button onClick={handlePostToPurchases} disabled={posting} style={{ padding: '10px 30px', background: posting ? '#9ca3af' : '#ca8a04', color: 'white', border: 'none', borderRadius: '6px', cursor: posting ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
             {posting ? 'جاري الترحيل...' : T.post}
           </button>
         )}
       </div>
+
+      <style jsx global>{`
+        @media print {
+          aside, header, .no-print { display: none !important; }
+          main { margin: 0 !important; padding: 0 !important; }
+          body { background: white !important; }
+          input { border: none !important; background: transparent !important; }
+          table { font-size: 11px !important; }
+        }
+      `}</style>
     </div>
   )
 }
 
-export default function DailyReceiptsPage() {
-  return (
-    <Suspense fallback={<div>جاري التحميل...</div>}>
-      <DailyReceiptsContent />
-    </Suspense>
-  )
-}
+export default function DailyReceiptsPage() { return <Suspense fallback={<div>جاري التحميل...</div>}><DailyReceiptsContent /></Suspense> }
 
 const thStyle: React.CSSProperties = { padding: '10px', border: '1px solid #1e40af', fontWeight: 'bold' }
 const tdStyle: React.CSSProperties = { padding: '5px', border: '1px solid #e5e7eb' }
