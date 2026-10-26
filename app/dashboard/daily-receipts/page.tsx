@@ -5,24 +5,27 @@ import { createClient } from '@/lib/supabase/client'
 import { useSearchParams } from 'next/navigation'
 
 const T = {
-  titleVeg: '\u0627\u0633\u062A\u0644\u0627\u0645 \u0627\u0644\u062E\u0636\u0627\u0631 \u0627\u0644\u064A\u0648\u0645\u064A',
-  titleFruit: '\u0627\u0633\u062A\u0644\u0627\u0645 \u0627\u0644\u0641\u0648\u0627\u0643\u0647 \u0627\u0644\u064A\u0648\u0645\u064A',
-  date: '\u0627\u0644\u062A\u0627\u0631\u064A\u062E',
-  supplier: '\u0627\u0644\u0645\u0648\u0631\u062F\u064A\u0646',
-  item: '\u0627\u0633\u0645 \u0627\u0644\u0635\u0646\u0641',
-  totalQty: '\u0627\u0644\u0643\u0645\u064A\u0629 \u0627\u0644\u0643\u0644\u064A\u0629',
-  price: '\u0627\u0644\u0633\u0639\u0631',
-  totalPrice: '\u0627\u0644\u0625\u062C\u0645\u0627\u0644\u064A \u0627\u0644\u0639\u0627\u0645',
-  brDakhil: '\u0627\u0644\u0641\u0631\u0639 \u0627\u0644\u062F\u062E\u0644',
-  brNasiriya: '\u0627\u0644\u0641\u0631\u0639 \u0627\u0644\u0646\u0627\u0635\u0631\u064A\u0629',
-  brTaj: '\u0627\u0644\u0641\u0631\u0639 \u0627\u0644\u062A\u0627\u062C',
-  brFourth: '\u0627\u0644\u0641\u0631\u0639 \u0627\u0644\u0631\u0627\u0628\u0639',
-  qty: '\u0627\u0644\u0643\u0645\u064A\u0629',
-  total: '\u0627\u0644\u0625\u062C\u0645\u0627\u0644\u064A',
-  taxToggle: '\u062A\u0641\u0639\u064A\u0644 \u0627\u0644\u0636\u0631\u064A\u0628\u0629 (15%)',
-  save: '\u062D\u0641\u0638 \u0627\u0644\u0627\u0633\u062A\u0644\u0627\u0645',
-  addRow: '+ \u0625\u0636\u0627\u0641\u0629 \u0635\u0646\u0641',
-  success: '\u062A\u0645 \u062D\u0641\u0638 \u0627\u0644\u0627\u0633\u062A\u0644\u0627\u0645 \u0628\u0646\u062C\u0627\u062D!',
+  titleVeg: 'استلام الخضار اليومي',
+  titleFruit: 'استلام الفواكه اليومي',
+  date: 'التاريخ',
+  supplier: 'الموردين',
+  item: 'اسم الصنف',
+  totalQty: 'الكمية الكلية',
+  price: 'السعر',
+  totalPrice: 'الإجمالي العام',
+  brDakhil: 'الفرع الدخل',
+  brNasiriya: 'الفرع الناصرية',
+  brTaj: 'الفرع التاج',
+  brFourth: 'الفرع الرابع',
+  qty: 'الكمية',
+  total: 'الإجمالي',
+  taxToggle: 'تفعيل الضريبة (15%)',
+  save: 'حفظ الاستلام',
+  addRow: '+ إضافة صنف',
+  success: 'تم حفظ الاستلام بنجاح!',
+  footerTotal: 'الإجمالي الكلي',
+  vat: 'ضريبة القيمة المضافة (15%)',
+  grandTotal: 'الإجمالي الكلي بعد الضريبة'
 }
 
 function DailyReceiptsContent() {
@@ -59,6 +62,31 @@ function DailyReceiptsContent() {
     setRows([...rows, { product_name: '', supplier_name: '', total_qty: 0, price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
   }
 
+  // الحسابات المباشرة للمجاميع
+  const totals = rows.reduce((acc, row) => {
+    const totalPrice = row.total_qty * row.price;
+    const dakhilTotal = row.dakhil_qty * row.price;
+    const nasiriyaTotal = row.nasiriya_qty * row.price;
+    const tajTotal = row.taj_qty * row.price;
+    const fourthTotal = row.fourth_qty * row.price;
+
+    return {
+      total_qty: acc.total_qty + (Number(row.total_qty) || 0),
+      total_price: acc.total_price + (totalPrice || 0),
+      dakhil_qty: acc.dakhil_qty + (Number(row.dakhil_qty) || 0),
+      dakhil_total: acc.dakhil_total + (dakhilTotal || 0),
+      nasiriya_qty: acc.nasiriya_qty + (Number(row.nasiriya_qty) || 0),
+      nasiriya_total: acc.nasiriya_total + (nasiriyaTotal || 0),
+      taj_qty: acc.taj_qty + (Number(row.taj_qty) || 0),
+      taj_total: acc.taj_total + (tajTotal || 0),
+      fourth_qty: acc.fourth_qty + (Number(row.fourth_qty) || 0),
+      fourth_total: acc.fourth_total + (fourthTotal || 0),
+    }
+  }, { total_qty: 0, total_price: 0, dakhil_qty: 0, dakhil_total: 0, nasiriya_qty: 0, nasiriya_total: 0, taj_qty: 0, taj_total: 0, fourth_qty: 0, fourth_total: 0 })
+
+  const taxAmount = isTaxEnabled ? totals.total_price * 0.15 : 0
+  const grandTotal = totals.total_price + taxAmount
+
   async function handleSave() {
     setSaving(true)
     setMessage('')
@@ -84,8 +112,8 @@ function DailyReceiptsContent() {
           receipt_id: receipt.id,
           manual_product_name: row.product_name,
           manual_supplier_name: row.supplier_name,
-          total_qty: row.total_qty || 0,
-          unit_price: row.price || 0
+          total_qty: Number(row.total_qty) || 0,
+          unit_price: Number(row.price) || 0
         }).select('id').single()
 
         if (itemError) throw itemError
@@ -126,7 +154,7 @@ function DailyReceiptsContent() {
         <h1 style={{ margin: 0, color: '#065f46', fontSize: '22px' }}>{getTitle()}</h1>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           {type === 'fruit' && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'bold', color: '#b91c1c' }}>
               <input type="checkbox" checked={isTaxEnabled} onChange={(e) => setIsTaxEnabled(e.target.checked)} style={{ width: '18px', height: '18px' }} />
               {T.taxToggle}
             </label>
@@ -141,7 +169,7 @@ function DailyReceiptsContent() {
 
       <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap' }}>
         <thead>
-          <tr style={{ background: '#1e3a8a', color: 'white' }}>
+          <tr style={{ background: '#0f172a', color: 'white' }}>
             <th rowSpan={2} style={thStyle}>{T.date}</th>
             <th rowSpan={2} style={thStyle}>{T.supplier}</th>
             <th rowSpan={2} style={thStyle}>{T.item}</th>
@@ -153,7 +181,7 @@ function DailyReceiptsContent() {
             <th colSpan={2} style={thStyle}>{T.brTaj}</th>
             <th colSpan={2} style={thStyle}>{T.brFourth}</th>
           </tr>
-          <tr style={{ background: '#3b82f6', color: 'white' }}>
+          <tr style={{ background: '#1e3a8a', color: 'white' }}>
             <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
             <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
             <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
@@ -172,11 +200,9 @@ function DailyReceiptsContent() {
               <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={tdStyle}>{date}</td>
                 <td style={tdStyle}>
-                  {/* حقل كتابة حر بدون قوائم منسدلة */}
                   <input type="text" placeholder="اكتب المورد..." value={row.supplier_name} onChange={(e) => handleRowChange(index, 'supplier_name', e.target.value)} style={inputStyle} />
                 </td>
                 <td style={tdStyle}>
-                  {/* حقل كتابة حر بدون قوائم منسدلة */}
                   <input type="text" placeholder="اكتب الصنف..." value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} />
                 </td>
                 <td style={tdStyle}><input type="number" value={row.total_qty || ''} onChange={(e) => handleRowChange(index, 'total_qty', Number(e.target.value))} style={inputStyle} /></td>
@@ -198,6 +224,35 @@ function DailyReceiptsContent() {
             )
           })}
         </tbody>
+        {/* صف المجاميع المطابق للإكسل */}
+        <tfoot>
+          <tr style={{ background: '#f3f4f6', fontWeight: 'bold', color: '#111827', fontSize: '14px' }}>
+            <td colSpan={3} style={{ padding: '10px', textAlign: 'center' }}>{T.footerTotal}</td>
+            <td style={tdStyle}>{totals.total_qty}</td>
+            <td style={tdStyle}>-</td>
+            <td style={tdStyle}>{totals.total_price.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.dakhil_qty}</td>
+            <td style={tdStyle}>{totals.dakhil_total.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.nasiriya_qty}</td>
+            <td style={tdStyle}>{totals.nasiriya_total.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.taj_qty}</td>
+            <td style={tdStyle}>{totals.taj_total.toFixed(2)}</td>
+            <td style={tdStyle}>{totals.fourth_qty}</td>
+            <td style={tdStyle}>{totals.fourth_total.toFixed(2)}</td>
+          </tr>
+          {type === 'fruit' && isTaxEnabled && (
+            <>
+              <tr style={{ background: '#fef3c7', fontWeight: 'bold', color: '#92400e' }}>
+                <td colSpan={5} style={{ padding: '10px', textAlign: 'center' }}>{T.vat}</td>
+                <td colSpan={9} style={{ padding: '10px', textAlign: 'center' }}>{taxAmount.toFixed(2)}</td>
+              </tr>
+              <tr style={{ background: '#dcfce7', fontWeight: 'bold', color: '#166534' }}>
+                <td colSpan={5} style={{ padding: '10px', textAlign: 'center' }}>{T.grandTotal}</td>
+                <td colSpan={9} style={{ padding: '10px', textAlign: 'center' }}>{grandTotal.toFixed(2)}</td>
+              </tr>
+            </>
+          )}
+        </tfoot>
       </table>
 
       <div style={{ marginTop: '15px', display: 'flex', gap: '15px' }}>
