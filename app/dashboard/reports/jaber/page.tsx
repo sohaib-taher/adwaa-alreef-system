@@ -33,7 +33,7 @@ function JaberReportContent() {
   const [loading, setLoading] = useState(true)
   const [reportData, setReportData] = useState<any[]>([])
   
-  const [fixedValues, setFixedValues] = useState({
+  const [fixedValues] = useState({
     prevDebt: 0, salary: 3500, expenses: 500,
     cashPayment: 0, bankPayment1: 24600, bankPayment2: 85918
   })
@@ -57,18 +57,16 @@ function JaberReportContent() {
       receipts?.forEach(receipt => {
         const date = receipt.receipt_date
         if (!groupedData[date]) groupedData[date] = { date, dakhil: 0, nasiriya: 0 }
+        
         receipt.daily_receipt_items?.forEach((item: any) => {
           item.receipt_branch_allocations?.forEach((alloc: any) => {
             const branchName = (alloc.branches as any)?.name || (alloc.branches as any)?.[0]?.name || ''
             
-            // المعادلة الجديدة: إذا كان المدير قد اعتمد الكمية، نأخذ الكمية المستلمة فعلياً، وإلا نأخذ الكمية المرسلة
+            // المعادلة الجديدة: إذا كان المدير قد اعتمد، نأخذ المستلم، وإلا نأخذ المرسل
             const isApproved = alloc.worker_status === 'admin_approved';
-            const finalQty = isApproved && alloc.actual_received_qty !== null 
-              ? Number(alloc.actual_received_qty) 
-              : Number(alloc.sent_qty);
-              
+            const finalQty = isApproved && alloc.actual_received_qty !== null ? Number(alloc.actual_received_qty) : Number(alloc.sent_qty);
+            
             const total = finalQty * (Number(item.unit_price) || 0)
-
             if (branchName.includes('الدخل')) groupedData[date].dakhil += total
             if (branchName.includes('الناصرية')) groupedData[date].nasiriya += total
           })
@@ -90,10 +88,7 @@ function JaberReportContent() {
 
   const handleExport = () => {
     const excelData = reportData.map(row => ({
-      'التاريخ': row.date,
-      'مشتريات الدخل': row.dakhil,
-      'مشتريات الناصرية': row.nasiriya,
-      'إجمالي المشتريات': row.dakhil + row.nasiriya
+      'التاريخ': row.date, 'مشتريات الدخل': row.dakhil, 'مشتريات الناصرية': row.nasiriya, 'إجمالي المشتريات': row.dakhil + row.nasiriya
     }))
     const ws = XLSX.utils.json_to_sheet(excelData)
     const wb = XLSX.utils.book_new()
@@ -105,7 +100,6 @@ function JaberReportContent() {
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
-      
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ color: '#1e3a8a', fontSize: '24px', margin: 0 }}>{T.title}</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -117,28 +111,19 @@ function JaberReportContent() {
       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap', marginBottom: '20px' }}>
         <thead>
           <tr style={{ background: '#1e3a8a', color: 'white' }}>
-            <th style={thStyle}>{T.date}</th>
-            <th style={thStyle}>{T.purchDakhil}</th>
-            <th style={thStyle}>{T.purchNasiriya}</th>
-            <th style={{...thStyle, background: '#ca8a04'}}>{T.totalPurch}</th>
+            <th style={thStyle}>{T.date}</th><th style={thStyle}>{T.purchDakhil}</th><th style={thStyle}>{T.purchNasiriya}</th><th style={{...thStyle, background: '#ca8a04'}}>{T.totalPurch}</th>
           </tr>
         </thead>
         <tbody>
           {reportData.map((row, i) => (
             <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-              <td style={tdStyle}>{row.date}</td>
-              <td style={tdStyle}>{row.dakhil.toFixed(2)}</td>
-              <td style={tdStyle}>{row.nasiriya.toFixed(2)}</td>
-              <td style={{...tdStyle, background: '#fef08a', fontWeight: 'bold'}}>{(row.dakhil + row.nasiriya).toFixed(2)}</td>
+              <td style={tdStyle}>{row.date}</td><td style={tdStyle}>{row.dakhil.toFixed(2)}</td><td style={tdStyle}>{row.nasiriya.toFixed(2)}</td><td style={{...tdStyle, background: '#fef08a', fontWeight: 'bold'}}>{(row.dakhil + row.nasiriya).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr style={{ background: '#facc15', fontWeight: 'bold', color: '#000' }}>
-            <td style={tdStyle}>{T.totals}</td>
-            <td style={tdStyle}>{totalDakhil.toFixed(2)}</td>
-            <td style={tdStyle}>{totalNasiriya.toFixed(2)}</td>
-            <td style={tdStyle}>{totalPurchases.toFixed(2)}</td>
+            <td style={tdStyle}>{T.totals}</td><td style={tdStyle}>{totalDakhil.toFixed(2)}</td><td style={tdStyle}>{totalNasiriya.toFixed(2)}</td><td style={tdStyle}>{totalPurchases.toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
@@ -178,9 +163,7 @@ function JaberReportContent() {
   )
 }
 
-export default function JaberReportPage() {
-  return <Suspense fallback={<div>جاري التحميل...</div>}><JaberReportContent /></Suspense>
-}
+export default function JaberReportPage() { return <Suspense fallback={<div>جاري التحميل...</div>}><JaberReportContent /></Suspense> }
 
 const thStyle: React.CSSProperties = { padding: '10px', border: '1px solid #1e40af', fontWeight: 'bold' }
 const tdStyle: React.CSSProperties = { padding: '8px', border: '1px solid #e5e7eb', textAlign: 'center' }

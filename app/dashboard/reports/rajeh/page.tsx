@@ -44,7 +44,7 @@ function RajehReportContent() {
 
       const { data: receipts } = await supabase
         .from('daily_receipts')
-        .select(`receipt_date, daily_receipt_items (unit_price, receipt_branch_allocations ( sent_qty, branches(name) ))`)
+        .select(`receipt_date, daily_receipt_items (unit_price, receipt_branch_allocations ( sent_qty, actual_received_qty, worker_status, branches(name) ))`)
         .eq('category_type', 'paper')
         .eq('company_id', userData.company_id)
         .order('receipt_date', { ascending: true })
@@ -56,7 +56,9 @@ function RajehReportContent() {
         receipt.daily_receipt_items?.forEach((item: any) => {
           item.receipt_branch_allocations?.forEach((alloc: any) => {
             const branchName = (alloc.branches as any)?.name || (alloc.branches as any)?.[0]?.name || ''
-            const total = (Number(alloc.sent_qty) || 0) * (Number(item.unit_price) || 0)
+            const isApproved = alloc.worker_status === 'admin_approved';
+            const finalQty = isApproved && alloc.actual_received_qty !== null ? Number(alloc.actual_received_qty) : Number(alloc.sent_qty);
+            const total = finalQty * (Number(item.unit_price) || 0)
             if (branchName.includes('الدخل')) groupedData[date].dakhil += total
             if (branchName.includes('الناصرية')) groupedData[date].nasiriya += total
             if (branchName.includes('التاج') || branchName.includes('تاج')) groupedData[date].taj += total
@@ -76,11 +78,8 @@ function RajehReportContent() {
 
   const handleExport = () => {
     const excelData = reportData.map(row => ({
-      'التاريخ': row.date,
-      'مشتريات الدخل': row.dakhil,
-      'مشتريات الناصرية': row.nasiriya,
-      'إجمالي الدخل والناصرية': row.dakhil + row.nasiriya,
-      'مشتريات التاج': row.taj
+      'التاريخ': row.date, 'مشتريات الدخل': row.dakhil, 'مشتريات الناصرية': row.nasiriya,
+      'إجمالي الدخل والناصرية': row.dakhil + row.nasiriya, 'مشتريات التاج': row.taj
     }))
     const ws = XLSX.utils.json_to_sheet(excelData)
     const wb = XLSX.utils.book_new()
@@ -92,7 +91,6 @@ function RajehReportContent() {
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
-      
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ color: '#1e3a8a', fontSize: '24px', margin: 0 }}>{T.title}</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -159,14 +157,7 @@ function RajehReportContent() {
         </div>
       </div>
 
-      <style jsx global>{`
-        @media print {
-          aside, header, .no-print { display: none !important; }
-          main { margin: 0 !important; padding: 0 !important; }
-          body { background: white !important; }
-          table { font-size: 11px !important; }
-        }
-      `}</style>
+      <style jsx global>{`@media print { aside, header, .no-print { display: none !important; } main { margin: 0 !important; padding: 0 !important; } body { background: white !important; } table { font-size: 11px !important; } }`}</style>
     </div>
   )
 }
