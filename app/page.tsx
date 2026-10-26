@@ -1,21 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
-export default function Dashboard() {
-  const [loading, setLoading] = useState(true)
+export default function HomePage() {
+  const router = useRouter()
 
   useEffect(() => {
-    // مجرد تأخير بسيط لظهور المحتوى، لا يوجد اتصال بقاعدة البيانات هنا
-    setTimeout(() => setLoading(false), 500)
-  }, [])
-
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center', color: '#065f46' }}>جاري التحميل...</div>
+    // توجيه تلقائي مباشر إلى لوحة التحكم
+    router.replace('/dashboard')
+  }, [router])
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1 style={{ color: '#065f46', fontSize: '24px' }}>مرحباً بك في لوحة التحكم</h1>
-      <p style={{ color: '#6b7280' }}>النظام يعمل الآن. اختر صفحة من القائمة الجانبية.</p>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 font-sans" dir="rtl">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-9 w-9 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+        <p className="text-sm font-medium text-emerald-800">جاري الدخول إلى لوحة التحكم...</p>
+      </div>
     </div>
   )
 }
