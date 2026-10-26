@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation'
 const T = {
   titleVeg: 'استلام الخضار اليومي',
   titleFruit: 'استلام الفواكه اليومي',
+  titlePaper: 'استلام الورقيات اليومي',
   date: 'التاريخ',
   supplier: 'الموردين',
   item: 'اسم الصنف',
@@ -25,7 +26,8 @@ const T = {
   success: 'تم حفظ الاستلام بنجاح!',
   footerTotal: 'الإجمالي الكلي',
   vat: 'ضريبة القيمة المضافة (15%)',
-  grandTotal: 'الإجمالي الكلي بعد الضريبة'
+  grandTotal: 'الإجمالي الكلي بعد الضريبة',
+  error: 'حدث خطأ أثناء الحفظ'
 }
 
 function DailyReceiptsContent() {
@@ -40,7 +42,7 @@ function DailyReceiptsContent() {
   const [branches, setBranches] = useState<any[]>([])
 
   const [rows, setRows] = useState<any[]>([
-    { product_name: '', supplier_name: '', total_qty: 0, price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }
+    { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }
   ])
 
   useEffect(() => {
@@ -59,30 +61,40 @@ function DailyReceiptsContent() {
   }
 
   const addRow = () => {
-    setRows([...rows, { product_name: '', supplier_name: '', total_qty: 0, price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
+    setRows([...rows, { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
   }
 
-  // الحسابات المباشرة للمجاميع
-  const totals = rows.reduce((acc, row) => {
-    const totalPrice = row.total_qty * row.price;
-    const dakhilTotal = row.dakhil_qty * row.price;
-    const nasiriyaTotal = row.nasiriya_qty * row.price;
-    const tajTotal = row.taj_qty * row.price;
-    const fourthTotal = row.fourth_qty * row.price;
+  // دالة حساب إجمالي السطر
+  const getRowTotalQty = (row: any) => {
+    return (Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0)
+  }
 
+  const getRowTotalPrice = (row: any) => {
+    return getRowTotalQty(row) * (Number(row.price) || 0)
+  }
+
+  // حساب المجاميع الكلية للجدول
+  const totals = rows.reduce((acc, row) => {
+    const rowQty = getRowTotalQty(row)
+    const rowPrice = getRowTotalPrice(row)
+    
     return {
-      total_qty: acc.total_qty + (Number(row.total_qty) || 0),
-      total_price: acc.total_price + (((Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0)) * (Number(row.price) || 0)),
       dakhil_qty: acc.dakhil_qty + (Number(row.dakhil_qty) || 0),
-      dakhil_total: acc.dakhil_total + (dakhilTotal || 0),
+      dakhil_total: acc.dakhil_total + ((Number(row.dakhil_qty) || 0) * (Number(row.price) || 0)),
+      
       nasiriya_qty: acc.nasiriya_qty + (Number(row.nasiriya_qty) || 0),
-      nasiriya_total: acc.nasiriya_total + (nasiriyaTotal || 0),
+      nasiriya_total: acc.nasiriya_total + ((Number(row.nasiriya_qty) || 0) * (Number(row.price) || 0)),
+      
       taj_qty: acc.taj_qty + (Number(row.taj_qty) || 0),
-      taj_total: acc.taj_total + (tajTotal || 0),
+      taj_total: acc.taj_total + ((Number(row.taj_qty) || 0) * (Number(row.price) || 0)),
+      
       fourth_qty: acc.fourth_qty + (Number(row.fourth_qty) || 0),
-      fourth_total: acc.fourth_total + (fourthTotal || 0),
+      fourth_total: acc.fourth_total + ((Number(row.fourth_qty) || 0) * (Number(row.price) || 0)),
+      
+      total_qty: acc.total_qty + rowQty,
+      total_price: acc.total_price + rowPrice,
     }
-  }, { total_qty: 0, total_price: 0, dakhil_qty: 0, dakhil_total: 0, nasiriya_qty: 0, nasiriya_total: 0, taj_qty: 0, taj_total: 0, fourth_qty: 0, fourth_total: 0 })
+  }, { dakhil_qty: 0, dakhil_total: 0, nasiriya_qty: 0, nasiriya_total: 0, taj_qty: 0, taj_total: 0, fourth_qty: 0, fourth_total: 0, total_qty: 0, total_price: 0 })
 
   const taxAmount = isTaxEnabled ? totals.total_price * 0.15 : 0
   const grandTotal = totals.total_price + taxAmount
@@ -108,11 +120,13 @@ function DailyReceiptsContent() {
       for (const row of rows) {
         if (!row.product_name) continue;
 
+        const rowTotalQty = getRowTotalQty(row)
+        
         const { data: item, error: itemError } = await supabase.from('daily_receipt_items').insert({
           receipt_id: receipt.id,
           manual_product_name: row.product_name,
           manual_supplier_name: row.supplier_name,
-          total_qty: Number(row.total_qty) || 0,
+          total_qty: rowTotalQty,
           unit_price: Number(row.price) || 0
         }).select('id').single()
 
@@ -126,26 +140,26 @@ function DailyReceiptsContent() {
         ]
 
         for (const d of dist) {
-          if (d.qty > 0) {
+          if (Number(d.qty) > 0) {
             const branchId = branches.find(b => b.name.includes(d.nameMatch))?.id
             if (branchId) {
-              await supabase.from('receipt_branch_allocations').insert({ receipt_item_id: item.id, branch_id: branchId, sent_qty: d.qty })
+              await supabase.from('receipt_branch_allocations').insert({ receipt_item_id: item.id, branch_id: branchId, sent_qty: Number(d.qty) })
             }
           }
         }
       }
 
       setMessage(T.success)
-      setRows([{ product_name: '', supplier_name: '', total_qty: 0, price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
+      setRows([{ product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
       
     } catch (err: any) {
-      setMessage('حدث خطأ: ' + err.message)
+      setMessage(T.error + ': ' + err.message)
     } finally {
       setSaving(false)
     }
   }
 
-  const getTitle = () => type === 'fruit' ? T.titleFruit : T.titleVeg
+  const getTitle = () => type === 'fruit' ? T.titleFruit : type === 'paper' ? T.titlePaper : T.titleVeg
 
   return (
     <div style={{ padding: '10px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
@@ -164,7 +178,7 @@ function DailyReceiptsContent() {
       </div>
 
       {message && (
-        <div style={{ padding: '10px', marginBottom: '15px', borderRadius: '6px', background: '#d1fae5', color: '#065f46', fontWeight: 'bold' }}>{message}</div>
+        <div style={{ padding: '10px', marginBottom: '15px', borderRadius: '6px', background: message.includes('بنجاح') ? '#d1fae5' : '#fee2e2', color: message.includes('بنجاح') ? '#065f46' : '#991b1b', fontWeight: 'bold' }}>{message}</div>
       )}
 
       <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap' }}>
@@ -190,12 +204,12 @@ function DailyReceiptsContent() {
         </thead>
         <tbody>
           {rows.map((row, index) => {
-            const rowTotalQty = (Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0);
-            const totalPrice = rowTotalQty * (Number(row.price) || 0);
-            const dakhilTotal = row.dakhil_qty * row.price;
-            const nasiriyaTotal = row.nasiriya_qty * row.price;
-            const tajTotal = row.taj_qty * row.price;
-            const fourthTotal = row.fourth_qty * row.price;
+            const rowQty = getRowTotalQty(row)
+            const rowTotalPrice = getRowTotalPrice(row)
+            const dakhilTotal = (Number(row.dakhil_qty) || 0) * (Number(row.price) || 0)
+            const nasiriyaTotal = (Number(row.nasiriya_qty) || 0) * (Number(row.price) || 0)
+            const tajTotal = (Number(row.taj_qty) || 0) * (Number(row.price) || 0)
+            const fourthTotal = (Number(row.fourth_qty) || 0) * (Number(row.price) || 0)
 
             return (
               <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
@@ -206,11 +220,9 @@ function DailyReceiptsContent() {
                 <td style={tdStyle}>
                   <input type="text" placeholder="اكتب الصنف..." value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} />
                 </td>
-               <td style={{...tdStyle, background: '#f9fafb', fontWeight: 'bold'}}>
-                  {(Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0)}
-                </td>
+                <td style={{...tdStyle, fontWeight: 'bold', background: '#f3f4f6'}}>{rowQty}</td>
                 <td style={tdStyle}><input type="number" value={row.price || ''} onChange={(e) => handleRowChange(index, 'price', Number(e.target.value))} style={inputStyle} /></td>
-                <td style={{...tdStyle, fontWeight: 'bold'}}>{totalPrice.toFixed(2)}</td>
+                <td style={{...tdStyle, fontWeight: 'bold', color: '#065f46'}}>{rowTotalPrice.toFixed(2)}</td>
                 
                 <td style={tdStyle}><input type="number" value={row.dakhil_qty || ''} onChange={(e) => handleRowChange(index, 'dakhil_qty', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={tdStyle}>{dakhilTotal.toFixed(2)}</td>
@@ -227,13 +239,10 @@ function DailyReceiptsContent() {
             )
           })}
         </tbody>
-        {/* صف المجاميع المطابق للإكسل */}
         <tfoot>
           <tr style={{ background: '#f3f4f6', fontWeight: 'bold', color: '#111827', fontSize: '14px' }}>
             <td colSpan={3} style={{ padding: '10px', textAlign: 'center' }}>{T.footerTotal}</td>
-            <td style={{...tdStyle, background: '#f9fafb'}}>
-              {(totals.dakhil_qty || 0) + (totals.nasiriya_qty || 0) + (totals.taj_qty || 0) + (totals.fourth_qty || 0)}
-            </td>
+            <td style={tdStyle}>{totals.total_qty}</td>
             <td style={tdStyle}>-</td>
             <td style={tdStyle}>{totals.total_price.toFixed(2)}</td>
             <td style={tdStyle}>{totals.dakhil_qty}</td>
@@ -262,7 +271,7 @@ function DailyReceiptsContent() {
 
       <div style={{ marginTop: '15px', display: 'flex', gap: '15px' }}>
         <button onClick={addRow} style={{ padding: '10px 20px', background: '#f3f4f6', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{T.addRow}</button>
-        <button onClick={handleSave} disabled={saving} style={{ padding: '10px 30px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{saving ? 'جاري الحفظ...' : T.save}</button>
+        <button onClick={handleSave} disabled={saving} style={{ padding: '10px 30px', background: saving ? '#9ca3af' : '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{saving ? 'جاري الحفظ...' : T.save}</button>
       </div>
     </div>
   )
