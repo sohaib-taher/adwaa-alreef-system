@@ -32,40 +32,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const [email, setEmail] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [isDesktop, setIsDesktop] = useState<boolean | null>(null)
 
-  // 1. كشف حجم الشاشة
-  useEffect(() => {
-    const checkSize = () => setIsDesktop(window.innerWidth >= 1024)
-    checkSize()
-    window.addEventListener('resize', checkSize)
-    return () => window.removeEventListener('resize', checkSize)
-  }, [])
-
-  // 2. جلب بيانات المستخدم (مع مؤقت لعدم التعليق)
-  useEffect(() => {
-    const supabase = createClient()
-    const timeout = setTimeout(() => {
-      // إذا تأخرت المصادقة، نغلق التحميل المبدئي
-      if (!email) setEmail('جاري التحميل...') 
-    }, 2000)
-
-    supabase.auth.getSession().then((res) => {
-      clearTimeout(timeout)
-      if (res.data.session) {
-        setEmail(res.data.session.user.email || '')
-      }
-    }).catch(() => clearTimeout(timeout))
-
-    return () => clearTimeout(timeout)
-  }, [])
-
-  // 3. إغلاق القائمة تلقائياً عند التنقل
   useEffect(() => {
     setMenuOpen(false)
   }, [pathname])
 
-  // 4. تسجيل الخروج الصارم
+  useEffect(() => {
+    const supabase = createClient()
+    let isMounted = true
+
+    // إضافة مؤقت لعدم تعليق النظام إذا فشلت المصادقة
+    const timeout = setTimeout(() => {
+      if (isMounted && !email) setEmail('...')
+    }, 3000)
+
+    supabase.auth.getSession().then((res) => {
+      clearTimeout(timeout)
+      if (isMounted && res.data.session) {
+        setEmail(res.data.session.user.email || '')
+      }
+    }).catch(() => clearTimeout(timeout))
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeout)
+    }
+  }, [])
+
   const handleLogout = async () => {
     try {
       const supabase = createClient()
@@ -73,48 +66,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } catch (error) {
       console.error(error)
     } finally {
-      // إجبار المتصفح على الانتقال لصفحة الدخول وتحديث الذاكرة
-      window.location.replace('/') 
+      window.location.href = '/' // استخدام href بدلاً من replace لضمان التحديث الكامل
     }
   }
-
-  // لا تعرض شيئاً حتى نعرف حجم الشاشة (لمنع ظهور القائمتين معاً)
-  if (isDesktop === null) return <div style={{ minHeight: '100vh', background: '#f3f4f6' }}></div>
-
-  const showSidebar = isDesktop || menuOpen
 
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Arial' }}>
       
+      {/* CSS لإدارة الشاشات بدلاً من الجافاسكربت (لمنع الوميض) */}
+      <style>{`
+        .sidebar-container {
+          position: fixed; top: 0; bottom: 0; right: -280px; width: 260px;
+          background: #065f46; color: white; z-index: 999;
+          transition: right 0.3s ease; overflow-y: auto;
+          display: flex; flex-direction: column;
+        }
+        .mobile-header { display: flex; }
+        .main-content { padding: 20px; min-height: 100vh; margin-right: 0; transition: margin 0.3s; }
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; }
+        
+        @media (min-width: 1024px) {
+          .sidebar-container { right: 0 !important; }
+          .mobile-header { display: none !important; }
+          .main-content { margin-right: 260px !important; }
+          .overlay { display: none !important; }
+        }
+      `}</style>
+
       {/* شريط الجوال */}
-      {!isDesktop && (
-        <header style={{ background: '#065f46', color: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
-          <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '24px', padding: '5px 15px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}>
-            ☰
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontWeight: 'bold', fontSize: '16px' }}>اضواء الريف</span>
-            <div style={{ width: '35px', height: '35px', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
-              <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            </div>
+      <header className="mobile-header" style={{ background: '#065f46', color: 'white', padding: '15px 20px', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
+        <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '24px', padding: '5px 15px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}>
+          ☰
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '16px' }}>اضواء الريف</span>
+          <div style={{ width: '35px', height: '35px', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
+            <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-        </header>
-      )}
+        </div>
+      </header>
 
       {/* خلفية سوداء للجوال */}
-      {!isDesktop && menuOpen && (
-        <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 998 }} />
+      {menuOpen && (
+        <div className="overlay" onClick={() => setMenuOpen(false)} style={{ display: 'block' }} />
       )}
 
       {/* القائمة الجانبية */}
-      <aside style={{
-        width: '260px', background: '#065f46', color: 'white', position: 'fixed',
-        top: 0, bottom: 0, 
-        right: isDesktop ? 0 : (showSidebar ? 0 : '-280px'), // إخفاء واظهار صارم
-        overflowY: 'auto', display: 'flex', flexDirection: 'column', zIndex: 999,
-        transition: 'right 0.3s ease-in-out',
-        boxShadow: isDesktop ? 'none' : '-5px 0 15px rgba(0,0,0,0.2)'
-      }}>
+      <aside className="sidebar-container" style={{ right: menuOpen ? '0' : '-280px' }}>
         <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '40px', height: '40px', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
             <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -152,7 +150,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* المحتوى */}
-      <main style={{ padding: '20px', minHeight: '100vh', marginRight: isDesktop ? '260px' : '0', transition: 'margin 0.3s' }}>
+      <main className="main-content">
         {children}
       </main>
     </div>
