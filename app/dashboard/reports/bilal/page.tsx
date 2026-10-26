@@ -16,9 +16,11 @@ const T = {
   totals: 'الإجمالي',
   summaryTitle: 'الملخص المالي لبلال',
   prevDebt: 'باقي من مديونية سابقة',
-  purchases: 'مشتريات',
+  purchases: 'مشتريات (الخضار)',
   totalDue: 'المديونية السابقة + مشتريات',
-  payments: 'سداد بلال (نقداً / بنك)',
+  paymentsTitle: 'سداد بلال (نقداً / بنك)',
+  cashPayment: 'سداد بلال نقدا',
+  bankPayment1: 'سداد من البنك',
   finalDebt: 'مديونية بلال الحالية',
   noData: 'لا توجد بيانات مسجلة',
   loading: 'جاري التحميل...',
@@ -28,8 +30,11 @@ const T = {
 function BilalReportContent() {
   const [loading, setLoading] = useState(true)
   const [reportData, setReportData] = useState<any[]>([])
-  const [summary, setSummary] = useState({
-    prevDebt: 0, purchases: 0, payments: 50000
+  
+  const [fixedValues, setFixedValues] = useState({
+    prevDebt: 0,
+    cashPayment: 0,
+    bankPayment1: 50000 // قيمة تجريبية للسدادات، يمكن تعديلها
   })
 
   useEffect(() => {
@@ -38,6 +43,10 @@ function BilalReportContent() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
+      if (!userData) return
+
+      // جلب مشتريات الخضار فقط
       const { data: receipts } = await supabase
         .from('daily_receipts')
         .select(`
@@ -47,20 +56,18 @@ function BilalReportContent() {
             receipt_branch_allocations ( sent_qty, branches(name) )
           )
         `)
-        .eq('category_type', 'vegetable') // الفرق هنا: خضار
+        .eq('category_type', 'vegetable')
+        .eq('company_id', userData.company_id)
         .order('receipt_date', { ascending: true })
 
       const groupedData: any = {}
-
       receipts?.forEach(receipt => {
         const date = receipt.receipt_date
-        if (!groupedData[date]) {
-          groupedData[date] = { date, dakhil: 0, nasiriya: 0 }
-        }
+        if (!groupedData[date]) groupedData[date] = { date, dakhil: 0, nasiriya: 0 }
 
         receipt.daily_receipt_items?.forEach((item: any) => {
           item.receipt_branch_allocations?.forEach((alloc: any) => {
-            const branchName = alloc.branches?.name || ''
+            const branchName = (alloc.branches as any)?.name || (alloc.branches as any)?.[0]?.name || ''
             const total = (Number(alloc.sent_qty) || 0) * (Number(item.unit_price) || 0)
 
             if (branchName.includes('الدخل')) groupedData[date].dakhil += total
@@ -69,34 +76,28 @@ function BilalReportContent() {
         })
       })
 
-      const result = Object.values(groupedData)
-      setReportData(result)
-
-      const totalPurchases = result.reduce((sum: number, day: any) => sum + Number(day.dakhil) + Number(day.nasiriya), 0)
-      setSummary(prev => ({ ...prev, purchases: totalPurchases }))
-
+      setReportData(Object.values(groupedData))
       setLoading(false)
     }
     loadData()
   }, [])
 
-  const totals = reportData.reduce((acc, row: any) => ({
-    dakhil: acc.dakhil + row.dakhil,
-    nasiriya: acc.nasiriya + row.nasiriya,
-    total: acc.total + row.dakhil + row.nasiriya
-  }), { dakhil: 0, nasiriya: 0, total: 0 })
+  const totalPurchases = reportData.reduce((sum, day: any) => sum + day.dakhil + day.nasiriya, 0)
+  const totalDakhil = reportData.reduce((sum, day: any) => sum + day.dakhil, 0)
+  const totalNasiriya = reportData.reduce((sum, day: any) => sum + day.nasiriya, 0)
 
-  const totalDue = summary.prevDebt + summary.purchases
-  const finalDebt = totalDue - summary.payments
+  const totalDue = fixedValues.prevDebt + totalPurchases
+  const totalPayments = fixedValues.cashPayment + fixedValues.bankPayment1
+  const finalDebt = totalDue - totalPayments
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>{T.loading}</div>
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
       
-      <h1 style={{ color: '#1e3a8a', fontSize: '24px', marginBottom: '20px' }}>{T.title}</h1>
+      <h1 style={{ color: '#1e3a8a', fontSize: '24px', marginBottom: '20px', textAlign: 'center', fontWeight: 'bold' }}>{T.title}</h1>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap', marginBottom: '30px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap', marginBottom: '20px' }}>
         <thead>
           <tr style={{ background: '#1e3a8a', color: 'white' }}>
             <th style={thStyle}>{T.date}</th>
@@ -131,12 +132,12 @@ function BilalReportContent() {
           <tr style={{ background: '#facc15', fontWeight: 'bold', color: '#000' }}>
             <td style={tdStyle}>{T.totals}</td>
             <td style={tdStyle}>-</td>
-            <td style={tdStyle}>{totals.dakhil.toFixed(2)}</td>
+            <td style={tdStyle}>{totalDakhil.toFixed(2)}</td>
             <td style={tdStyle}>-</td>
             <td style={tdStyle}>-</td>
-            <td style={tdStyle}>{totals.nasiriya.toFixed(2)}</td>
+            <td style={tdStyle}>{totalNasiriya.toFixed(2)}</td>
             <td style={tdStyle}>-</td>
-            <td style={tdStyle}>{totals.total.toFixed(2)}</td>
+            <td style={tdStyle}>{totalPurchases.toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
@@ -149,8 +150,8 @@ function BilalReportContent() {
             </tr>
           </thead>
           <tbody>
-            <tr style={{ borderBottom: '1px solid #ccc' }}><td style={tdStyle}>{T.prevDebt}</td><td style={tdStyle}>{summary.prevDebt} {T.sar}</td></tr>
-            <tr style={{ borderBottom: '1px solid #ccc' }}><td style={tdStyle}>{T.purchases}</td><td style={tdStyle}>{summary.purchases.toFixed(2)} {T.sar}</td></tr>
+            <tr style={{ borderBottom: '1px solid #ccc' }}><td style={tdStyle}>{T.prevDebt}</td><td style={tdStyle}>{fixedValues.prevDebt} {T.sar}</td></tr>
+            <tr style={{ borderBottom: '1px solid #ccc' }}><td style={tdStyle}>{T.purchases}</td><td style={tdStyle}>{totalPurchases.toFixed(2)} {T.sar}</td></tr>
             <tr style={{ borderBottom: '2px solid #000', background: '#fde047', fontWeight: 'bold' }}><td style={tdStyle}>{T.totalDue}</td><td style={tdStyle}>{totalDue.toFixed(2)} {T.sar}</td></tr>
           </tbody>
         </table>
@@ -158,11 +159,12 @@ function BilalReportContent() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <thead>
             <tr style={{ background: '#e5e7eb', color: '#111827' }}>
-              <th colSpan={2} style={thStyle}>{T.payments}</th>
+              <th colSpan={2} style={thStyle}>{T.paymentsTitle}</th>
             </tr>
           </thead>
           <tbody>
-            <tr style={{ borderBottom: '1px solid #ccc' }}><td style={tdStyle}>سداد نقدي</td><td style={tdStyle}>{summary.payments} {T.sar}</td></tr>
+            <tr style={{ borderBottom: '1px solid #ccc' }}><td style={tdStyle}>{T.cashPayment}</td><td style={tdStyle}>{fixedValues.cashPayment} {T.sar}</td></tr>
+            <tr style={{ borderBottom: '1px solid #ccc' }}><td style={tdStyle}>{T.bankPayment1}</td><td style={tdStyle}>{fixedValues.bankPayment1} {T.sar}</td></tr>
             <tr style={{ borderBottom: '2px solid #000', background: '#fde047', fontWeight: 'bold' }}><td style={tdStyle}>{T.finalDebt}</td><td style={tdStyle}>{finalDebt.toFixed(2)} {T.sar}</td></tr>
           </tbody>
         </table>
