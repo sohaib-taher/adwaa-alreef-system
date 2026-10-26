@@ -13,7 +13,7 @@ const T = {
   cash: 'الكاش',
   expenses: 'المصروفات',
   invoices: 'الفواتير',
-  totalSales: 'إجمالي المبيعات',
+  totalSales: 'صافي المبيعات',
   notes: 'ملاحظات',
   save: 'حفظ الإيراد',
   last20: 'آخر 20 إيراد',
@@ -80,7 +80,8 @@ function RevenuesContent() {
   const cash = parseFloat(form.cash_amount) || 0
   const expenses = parseFloat(form.expenses) || 0
   const invoices = parseFloat(form.invoices) || 0
-  const totalSales = network + cash // إجمالي المبيعات = شبكة + كاش
+  // صافي المبيعات = (شبكة + كاش) - (مصروفات + فواتير)
+  const totalSales = (network + cash) - (expenses + invoices)
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
