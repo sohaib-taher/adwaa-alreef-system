@@ -22,12 +22,14 @@ const T = {
   total: 'الإجمالي',
   taxToggle: 'تفعيل الضريبة (15%)',
   save: 'حفظ الاستلام',
+  post: 'ترحيل إلى فواتير المشتريات',
   addRow: '+ إضافة صنف',
   success: 'تم حفظ الاستلام بنجاح!',
+  posted: 'تم الترحيل إلى فواتير المشتريات بنجاح!',
   footerTotal: 'الإجمالي الكلي',
   vat: 'ضريبة القيمة المضافة (15%)',
   grandTotal: 'الإجمالي الكلي بعد الضريبة',
-  error: 'حدث خطأ أثناء الحفظ'
+  error: 'حدث خطأ'
 }
 
 function DailyReceiptsContent() {
@@ -35,11 +37,13 @@ function DailyReceiptsContent() {
   const type = searchParams.get('type') || 'vegetable'
 
   const [saving, setSaving] = useState(false)
+  const [posting, setPosting] = useState(false)
   const [message, setMessage] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [isTaxEnabled, setIsTaxEnabled] = useState(type === 'fruit')
   
   const [branches, setBranches] = useState<any[]>([])
+  const [savedReceiptId, setSavedReceiptId] = useState<string | null>(null)
 
   const [rows, setRows] = useState<any[]>([
     { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }
@@ -64,7 +68,6 @@ function DailyReceiptsContent() {
     setRows([...rows, { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
   }
 
-  // دالة حساب إجمالي السطر
   const getRowTotalQty = (row: any) => {
     return (Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0)
   }
@@ -73,7 +76,6 @@ function DailyReceiptsContent() {
     return getRowTotalQty(row) * (Number(row.price) || 0)
   }
 
-  // حساب المجاميع الكلية للجدول
   const totals = rows.reduce((acc, row) => {
     const rowQty = getRowTotalQty(row)
     const rowPrice = getRowTotalPrice(row)
@@ -81,16 +83,12 @@ function DailyReceiptsContent() {
     return {
       dakhil_qty: acc.dakhil_qty + (Number(row.dakhil_qty) || 0),
       dakhil_total: acc.dakhil_total + ((Number(row.dakhil_qty) || 0) * (Number(row.price) || 0)),
-      
       nasiriya_qty: acc.nasiriya_qty + (Number(row.nasiriya_qty) || 0),
       nasiriya_total: acc.nasiriya_total + ((Number(row.nasiriya_qty) || 0) * (Number(row.price) || 0)),
-      
       taj_qty: acc.taj_qty + (Number(row.taj_qty) || 0),
       taj_total: acc.taj_total + ((Number(row.taj_qty) || 0) * (Number(row.price) || 0)),
-      
       fourth_qty: acc.fourth_qty + (Number(row.fourth_qty) || 0),
       fourth_total: acc.fourth_total + ((Number(row.fourth_qty) || 0) * (Number(row.price) || 0)),
-      
       total_qty: acc.total_qty + rowQty,
       total_price: acc.total_price + rowPrice,
     }
@@ -102,6 +100,7 @@ function DailyReceiptsContent() {
   async function handleSave() {
     setSaving(true)
     setMessage('')
+    setSavedReceiptId(null)
     const supabase = createClient()
 
     try {
@@ -116,10 +115,10 @@ function DailyReceiptsContent() {
       }).select('id').single()
 
       if (receiptError) throw receiptError
+      setSavedReceiptId(receipt.id) // حفظ المعرف لاستخدامه في الترحيل
 
       for (const row of rows) {
         if (!row.product_name) continue;
-
         const rowTotalQty = getRowTotalQty(row)
         
         const { data: item, error: itemError } = await supabase.from('daily_receipt_items').insert({
@@ -150,12 +149,70 @@ function DailyReceiptsContent() {
       }
 
       setMessage(T.success)
-      setRows([{ product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
-      
     } catch (err: any) {
       setMessage(T.error + ': ' + err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handlePostToPurchases() {
+    if (!savedReceiptId) return
+    setPosting(true)
+    const supabase = createClient()
+
+    try {
+      // 1. جلب بيانات الاستلام المحفوظ
+      const { data: items } = await supabase.from('daily_receipt_items').select('*').eq('receipt_id', savedReceiptId)
+      if (!items || items.length === 0) throw new Error('لا توجد أصناف')
+
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: userData } = await supabase.from('users').select('company_id, id').eq('auth_id', user!.id).single()
+
+      // 2. تجميع الأصناف حسب المورد لإنشاء فاتورة لكل مورد
+      const itemsBySupplier: any = {}
+      items.forEach(item => {
+        const supplier = item.manual_supplier_name || 'مورد غير محدد'
+        if (!itemsBySupplier[supplier]) itemsBySupplier[supplier] = []
+        itemsBySupplier[supplier].push(item)
+      })
+
+      // 3. إدخال الفواتير في جدول purchases
+      for (const supplierName in itemsBySupplier) {
+        const supplierItems = itemsBySupplier[supplierName]
+        
+        for (const item of supplierItems) {
+          const total = (Number(item.total_qty) || 0) * (Number(item.unit_price) || 0)
+          const tax = isTaxEnabled ? total * 0.15 : 0
+          
+          await supabase.from('purchases').insert({
+            company_id: userData!.company_id,
+            branch_id: null, // الفاتورة تخص الإدارة وتم توزيعها لاحقاً
+            purchase_date: date,
+            manual_product_name: item.manual_product_name,
+            manual_supplier_name: supplierName,
+            qty: item.total_qty,
+            unit_price: item.unit_price,
+            total: total,
+            tax_amount: tax,
+            total_with_tax: total + tax,
+            created_by: userData!.id,
+            daily_receipt_id: savedReceiptId
+          })
+        }
+      }
+
+      // 4. تحديث حالة السند لمنع الترحيل المزدوج
+      await supabase.from('daily_receipts').update({ is_posted_to_purchases: true }).eq('id', savedReceiptId)
+
+      setMessage(T.posted)
+      setRows([{ product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
+      setSavedReceiptId(null) // إخفاء زر الترحيل بعد النجاح
+
+    } catch (err: any) {
+      setMessage(T.error + ': ' + err.message)
+    } finally {
+      setPosting(false)
     }
   }
 
@@ -214,25 +271,17 @@ function DailyReceiptsContent() {
             return (
               <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={tdStyle}>{date}</td>
-                <td style={tdStyle}>
-                  <input type="text" placeholder="اكتب المورد..." value={row.supplier_name} onChange={(e) => handleRowChange(index, 'supplier_name', e.target.value)} style={inputStyle} />
-                </td>
-                <td style={tdStyle}>
-                  <input type="text" placeholder="اكتب الصنف..." value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} />
-                </td>
+                <td style={tdStyle}><input type="text" placeholder="اكتب المورد..." value={row.supplier_name} onChange={(e) => handleRowChange(index, 'supplier_name', e.target.value)} style={inputStyle} /></td>
+                <td style={tdStyle}><input type="text" placeholder="اكتب الصنف..." value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} /></td>
                 <td style={{...tdStyle, fontWeight: 'bold', background: '#f3f4f6'}}>{rowQty}</td>
                 <td style={tdStyle}><input type="number" value={row.price || ''} onChange={(e) => handleRowChange(index, 'price', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={{...tdStyle, fontWeight: 'bold', color: '#065f46'}}>{rowTotalPrice.toFixed(2)}</td>
-                
                 <td style={tdStyle}><input type="number" value={row.dakhil_qty || ''} onChange={(e) => handleRowChange(index, 'dakhil_qty', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={tdStyle}>{dakhilTotal.toFixed(2)}</td>
-                
                 <td style={tdStyle}><input type="number" value={row.nasiriya_qty || ''} onChange={(e) => handleRowChange(index, 'nasiriya_qty', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={tdStyle}>{nasiriyaTotal.toFixed(2)}</td>
-                
                 <td style={tdStyle}><input type="number" value={row.taj_qty || ''} onChange={(e) => handleRowChange(index, 'taj_qty', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={tdStyle}>{tajTotal.toFixed(2)}</td>
-
                 <td style={tdStyle}><input type="number" value={row.fourth_qty || ''} onChange={(e) => handleRowChange(index, 'fourth_qty', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={tdStyle}>{fourthTotal.toFixed(2)}</td>
               </tr>
@@ -272,6 +321,13 @@ function DailyReceiptsContent() {
       <div style={{ marginTop: '15px', display: 'flex', gap: '15px' }}>
         <button onClick={addRow} style={{ padding: '10px 20px', background: '#f3f4f6', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{T.addRow}</button>
         <button onClick={handleSave} disabled={saving} style={{ padding: '10px 30px', background: saving ? '#9ca3af' : '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{saving ? 'جاري الحفظ...' : T.save}</button>
+        
+        {/* زر الترحيل يظهر فقط بعد الحفظ الناجح */}
+        {savedReceiptId && (
+          <button onClick={handlePostToPurchases} disabled={posting} style={{ padding: '10px 30px', background: posting ? '#9ca3af' : '#ca8a04', color: 'white', border: 'none', borderRadius: '6px', cursor: posting ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+            {posting ? 'جاري الترحيل...' : T.post}
+          </button>
+        )}
       </div>
     </div>
   )
