@@ -5,44 +5,34 @@ import { createClient } from '@/lib/supabase/client'
 import * as XLSX from 'xlsx'
 
 const T = {
-  title: 'التقرير الأسبوعي الشامل',
+  title: 'تقرير الورقيات - عبده راجح',
   print: '🖨️ طباعة',
   export: '📥 تصدير Excel',
-  day: 'اليوم',
   date: 'التاريخ',
-  totalSales: 'إجمالي مبيعات الفرعين',
+  cashDakhil: 'كاش مع راجح (الدخل)',
+  purchDakhil: 'مشتريات (الدخل)',
+  remDakhil: 'باقي على (الدخل)',
+  cashNasiriya: 'كاش مع راجح (الناصري)',
+  purchNasiriya: 'مشتريات (الناصرية)',
+  remNasiriya: 'باقي (الناصرية)',
   totalPurch: 'إجمالي مشتريات الفرعين',
-  dakhil: 'فرع الدخل المحدود',
-  nasiriya: 'فرع الناصرية',
-  fruit: 'مشتريات الفواكه',
-  veg: 'مشتريات الخضار',
-  paper: 'مشتريات الورقيات',
-  sales: 'المبيعات',
-  expenses: 'المصروفات',
-  netSales: 'صافي المبيعات',
-  totalRow: 'الإجمالي',
+  totalCash: 'إجمالي كاش الفرعين',
+  totals: 'الإجمالي',
+  dateTaj: 'التاريخ',
+  cashTaj: 'كاش مع راجح (التاج)',
+  purchTaj: 'مشتريات (التاج)',
+  remTaj: 'باقي على (التاج)',
+  prevDebt: 'باقي مديونية سابقة',
+  increase: 'زيادة في المديونية',
+  netDebt: 'صافي المديونية',
+  noData: 'لا توجد بيانات',
   loading: 'جاري التحميل...',
-  days: ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد']
+  sar: 'ر.س'
 }
 
-function getWeekDates() {
-  const today = new Date()
-  const day = today.getDay()
-  const diff = today.getDate() - day + (day === 0 ? -6 : 1)
-  const monday = new Date(today.setDate(diff))
-  const dates = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    dates.push(d.toISOString().slice(0, 10))
-  }
-  return dates
-}
-
-function WeeklyReportContent() {
+function RajehReportContent() {
   const [loading, setLoading] = useState(true)
   const [reportData, setReportData] = useState<any[]>([])
-  const weekDates = getWeekDates()
 
   useEffect(() => {
     async function loadData() {
@@ -52,154 +42,128 @@ function WeeklyReportContent() {
       const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
       if (!userData) return
 
-      const { data: revenues } = await supabase
-        .from('revenues')
-        .select('revenue_date, network_amount, cash_amount, expenses, invoices, branches(name)')
-        .in('revenue_date', weekDates)
-        .eq('company_id', userData.company_id)
-
       const { data: receipts } = await supabase
         .from('daily_receipts')
-        .select(`receipt_date, category_type, daily_receipt_items (unit_price, receipt_branch_allocations ( sent_qty, actual_received_qty, worker_status, branches(name) ))`)
-        .in('receipt_date', weekDates)
+        .select(`receipt_date, daily_receipt_items (unit_price, receipt_branch_allocations ( sent_qty, actual_received_qty, worker_status, branches(name) ))`)
+        .eq('category_type', 'paper')
         .eq('company_id', userData.company_id)
+        .order('receipt_date', { ascending: true })
 
-      const grouped: any = {}
-      weekDates.forEach(date => {
-        grouped[date] = {
-          date, dakhil: { fruit: 0, veg: 0, paper: 0, sales: 0, expenses: 0, netSales: 0 },
-          nasiriya: { fruit: 0, veg: 0, paper: 0, sales: 0, expenses: 0, netSales: 0 },
-          totalSales: 0, totalPurch: 0
-        }
-      })
-
-      revenues?.forEach(rev => {
-        const branchName = (rev.branches as any)?.name || (rev.branches as any)?.[0]?.name || ''
-        const target = branchName.includes('الدخل') ? 'dakhil' : branchName.includes('الناصرية') ? 'nasiriya' : null
-        if (target && grouped[rev.revenue_date]) {
-          const sales = (Number(rev.network_amount) || 0) + (Number(rev.cash_amount) || 0)
-          const expenses = (Number(rev.expenses) || 0) + (Number(rev.invoices) || 0)
-          grouped[rev.revenue_date][target].sales += sales
-          grouped[rev.revenue_date][target].expenses += expenses
-        }
-      })
-
-      receipts?.forEach(rec => {
-        rec.daily_receipt_items?.forEach((item: any) => {
+      const groupedData: any = {}
+      receipts?.forEach(receipt => {
+        const date = receipt.receipt_date
+        if (!groupedData[date]) groupedData[date] = { date, dakhil: 0, nasiriya: 0, taj: 0 }
+        receipt.daily_receipt_items?.forEach((item: any) => {
           item.receipt_branch_allocations?.forEach((alloc: any) => {
             const branchName = (alloc.branches as any)?.name || (alloc.branches as any)?.[0]?.name || ''
-            const target = branchName.includes('الدخل') ? 'dakhil' : branchName.includes('الناصرية') ? 'nasiriya' : null
-            
-            if (target && grouped[rec.receipt_date]) {
-              const isApproved = alloc.worker_status === 'admin_approved';
-              const finalQty = isApproved && alloc.actual_received_qty !== null ? Number(alloc.actual_received_qty) : Number(alloc.sent_qty);
-              const amount = finalQty * (Number(item.unit_price) || 0)
-              
-              if (rec.category_type === 'fruit') grouped[rec.receipt_date][target].fruit += amount
-              if (rec.category_type === 'vegetable') grouped[rec.receipt_date][target].veg += amount
-              if (rec.category_type === 'paper') grouped[rec.receipt_date][target].paper += amount
-            }
+            const isApproved = alloc.worker_status === 'admin_approved';
+            const finalQty = isApproved && alloc.actual_received_qty !== null ? Number(alloc.actual_received_qty) : Number(alloc.sent_qty);
+            const total = finalQty * (Number(item.unit_price) || 0)
+            if (branchName.includes('الدخل')) groupedData[date].dakhil += total
+            if (branchName.includes('الناصرية')) groupedData[date].nasiriya += total
+            if (branchName.includes('التاج') || branchName.includes('تاج')) groupedData[date].taj += total
           })
         })
       })
-
-      Object.values(grouped).forEach((day: any) => {
-        day.dakhil.netSales = day.dakhil.sales - day.dakhil.expenses
-        day.nasiriya.netSales = day.nasiriya.sales - day.nasiriya.expenses
-        day.totalSales = day.dakhil.sales + day.nasiriya.sales
-        day.totalPurch = day.dakhil.fruit + day.dakhil.veg + day.dakhil.paper + day.nasiriya.fruit + day.nasiriya.veg + day.nasiriya.paper
-      })
-
-      setReportData(weekDates.map(date => grouped[date]))
+      setReportData(Object.values(groupedData))
       setLoading(false)
     }
     loadData()
   }, [])
 
-  const calculateTotals = () => {
-    const t = { dakhil: { fruit: 0, veg: 0, paper: 0, sales: 0, expenses: 0, netSales: 0 }, nasiriya: { fruit: 0, veg: 0, paper: 0, sales: 0, expenses: 0, netSales: 0 }, totalSales: 0, totalPurch: 0 }
-    reportData.forEach(day => {
-      t.dakhil.fruit += day.dakhil.fruit; t.dakhil.veg += day.dakhil.veg; t.dakhil.paper += day.dakhil.paper
-      t.dakhil.sales += day.dakhil.sales; t.dakhil.expenses += day.dakhil.expenses; t.dakhil.netSales += day.dakhil.netSales
-      t.nasiriya.fruit += day.nasiriya.fruit; t.nasiriya.veg += day.nasiriya.veg; t.nasiriya.paper += day.nasiriya.paper
-      t.nasiriya.sales += day.nasiriya.sales; t.nasiriya.expenses += day.nasiriya.expenses; t.nasiriya.netSales += day.nasiriya.netSales
-      t.totalSales += day.totalSales; t.totalPurch += day.totalPurch
-    })
-    return t
-  }
+  const totals = reportData.reduce((acc, row: any) => ({
+    dakhil: acc.dakhil + row.dakhil, nasiriya: acc.nasiriya + row.nasiriya,
+    taj: acc.taj + row.taj, totalPurch: acc.totalPurch + row.dakhil + row.nasiriya,
+  }), { dakhil: 0, nasiriya: 0, taj: 0, totalPurch: 0 })
 
-  const totals = calculateTotals()
-
-  const handleExportExcel = () => {
-    const excelData = reportData.map((row, i) => ({
-      'اليوم': T.days[i], 'التاريخ': row.date, 'إجمالي مبيعات الفرعين': row.totalSales, 'إجمالي مشتريات الفرعين': row.totalPurch,
-      'فواكه (الدخل)': row.dakhil.fruit, 'خضار (الدخل)': row.dakhil.veg, 'ورقيات (الدخل)': row.dakhil.paper,
-      'مبيعات (الدخل)': row.dakhil.sales, 'مصروفات (الدخل)': row.dakhil.expenses, 'صافي (الدخل)': row.dakhil.netSales,
-      'فواكه (الناصرية)': row.nasiriya.fruit, 'خضار (الناصرية)': row.nasiriya.veg, 'ورقيات (الناصرية)': row.nasiriya.paper,
-      'مبيعات (الناصرية)': row.nasiriya.sales, 'مصروفات (الناصرية)': row.nasiriya.expenses, 'صافي (الناصرية)': row.nasiriya.netSales,
+  const handleExport = () => {
+    const excelData = reportData.map(row => ({
+      'التاريخ': row.date, 'مشتريات الدخل': row.dakhil, 'مشتريات الناصرية': row.nasiriya,
+      'إجمالي الدخل والناصرية': row.dakhil + row.nasiriya, 'مشتريات التاج': row.taj
     }))
     const ws = XLSX.utils.json_to_sheet(excelData)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "التقرير الأسبوعي")
-    XLSX.writeFile(wb, `التقرير_الأسبوعي_${weekDates[0]}.xlsx`)
+    XLSX.utils.book_append_sheet(wb, ws, "تقرير راجح")
+    XLSX.writeFile(wb, `تقرير_راجح_${new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>{T.loading}</div>
 
   return (
-    <div style={{ padding: '10px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
+    <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ color: '#1e3a8a', fontSize: '24px', margin: 0 }}>{T.title}</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => window.print()} style={btnStyle('#059669')}>{T.print}</button>
-          <button onClick={handleExportExcel} style={btnStyle('#2563eb')}>{T.export}</button>
+          <button onClick={handleExport} style={btnStyle('#2563eb')}>{T.export}</button>
         </div>
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '12px', whiteSpace: 'nowrap' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap', marginBottom: '20px' }}>
         <thead>
           <tr style={{ background: '#0f172a', color: 'white' }}>
-            <th rowSpan={2} style={thStyle}>{T.day}</th><th rowSpan={2} style={thStyle}>{T.date}</th>
-            <th rowSpan={2} style={{...thStyle, background: '#ca8a04'}}>{T.totalSales}</th><th rowSpan={2} style={{...thStyle, background: '#ca8a04'}}>{T.totalPurch}</th>
-            <th colSpan={6} style={{...thStyle, background: '#1e3a8a'}}>{T.dakhil}</th>
-            <th colSpan={6} style={{...thStyle, background: '#1e3a8a'}}>{T.nasiriya}</th>
-          </tr>
-          <tr style={{ background: '#1e40af', color: 'white' }}>
-            <th style={thStyle}>{T.fruit}</th><th style={thStyle}>{T.veg}</th><th style={thStyle}>{T.paper}</th><th style={thStyle}>{T.sales}</th><th style={thStyle}>{T.expenses}</th><th style={thStyle}>{T.netSales}</th>
-            <th style={thStyle}>{T.fruit}</th><th style={thStyle}>{T.veg}</th><th style={thStyle}>{T.paper}</th><th style={thStyle}>{T.sales}</th><th style={thStyle}>{T.expenses}</th><th style={thStyle}>{T.netSales}</th>
+            <th style={thStyle}>{T.date}</th><th style={thStyle}>{T.cashDakhil}</th><th style={thStyle}>{T.purchDakhil}</th><th style={thStyle}>{T.remDakhil}</th>
+            <th style={thStyle}>{T.cashNasiriya}</th><th style={thStyle}>{T.purchNasiriya}</th><th style={thStyle}>{T.remNasiriya}</th>
+            <th style={{...thStyle, background: '#1e3a8a'}}>{T.totalPurch}</th><th style={{...thStyle, background: '#1e3a8a'}}>{T.totalCash}</th>
+            <th style={{...thStyle, background: '#334155'}}></th>
+            <th style={thStyle}>{T.dateTaj}</th><th style={thStyle}>{T.cashTaj}</th><th style={thStyle}>{T.purchTaj}</th><th style={thStyle}>{T.remTaj}</th>
           </tr>
         </thead>
         <tbody>
-          {reportData.map((row, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid #e5e7eb', background: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-              <td style={{...tdStyle, fontWeight: 'bold'}}>{T.days[i]}</td><td style={tdStyle}>{row.date}</td>
-              <td style={{...tdStyle, fontWeight: 'bold', color: '#059669'}}>{row.totalSales.toFixed(2)}</td>
-              <td style={{...tdStyle, fontWeight: 'bold', color: '#dc2626'}}>{row.totalPurch.toFixed(2)}</td>
-              <td style={tdStyle}>{row.dakhil.fruit > 0 ? row.dakhil.fruit.toFixed(2) : '-'}</td><td style={tdStyle}>{row.dakhil.veg > 0 ? row.dakhil.veg.toFixed(2) : '-'}</td><td style={tdStyle}>{row.dakhil.paper > 0 ? row.dakhil.paper.toFixed(2) : '-'}</td>
-              <td style={tdStyle}>{row.dakhil.sales.toFixed(2)}</td><td style={tdStyle}>{row.dakhil.expenses.toFixed(2)}</td><td style={{...tdStyle, background: '#dcfce7', fontWeight: 'bold', color: '#065f46'}}>{row.dakhil.netSales.toFixed(2)}</td>
-              <td style={tdStyle}>{row.nasiriya.fruit > 0 ? row.nasiriya.fruit.toFixed(2) : '-'}</td><td style={tdStyle}>{row.nasiriya.veg > 0 ? row.nasiriya.veg.toFixed(2) : '-'}</td><td style={tdStyle}>{row.nasiriya.paper > 0 ? row.nasiriya.paper.toFixed(2) : '-'}</td>
-              <td style={tdStyle}>{row.nasiriya.sales.toFixed(2)}</td><td style={tdStyle}>{row.nasiriya.expenses.toFixed(2)}</td><td style={{...tdStyle, background: '#dcfce7', fontWeight: 'bold', color: '#065f46'}}>{row.nasiriya.netSales.toFixed(2)}</td>
-            </tr>
-          ))}
+          {reportData.map((row, i) => {
+            const remDakhil = 0 - row.dakhil
+            const remNasiriya = 0 - row.nasiriya
+            const remTaj = 0 - row.taj
+            return (
+              <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <td style={tdStyle}>{row.date}</td><td style={tdStyle}>-</td><td style={tdStyle}>{row.dakhil.toFixed(2)}</td><td style={{...tdStyle, color: '#dc2626'}}>{remDakhil.toFixed(2)}</td>
+                <td style={tdStyle}>-</td><td style={tdStyle}>{row.nasiriya.toFixed(2)}</td><td style={{...tdStyle, color: '#dc2626'}}>{remNasiriya.toFixed(2)}</td>
+                <td style={{...tdStyle, background: '#fef08a', fontWeight: 'bold'}}>{(row.dakhil + row.nasiriya).toFixed(2)}</td><td style={{...tdStyle, background: '#fef08a', fontWeight: 'bold'}}>-</td>
+                <td style={{...tdStyle, background: '#e2e8f0'}}></td>
+                <td style={tdStyle}>{row.date}</td><td style={tdStyle}>-</td><td style={tdStyle}>{row.taj.toFixed(2)}</td><td style={{...tdStyle, color: '#dc2626'}}>{remTaj.toFixed(2)}</td>
+              </tr>
+            )
+          })}
         </tbody>
         <tfoot>
-          <tr style={{ background: '#fef08a', fontWeight: 'bold', color: '#000' }}>
-            <td colSpan={2} style={tdStyle}>{T.totalRow}</td><td style={tdStyle}>{totals.totalSales.toFixed(2)}</td><td style={tdStyle}>{totals.totalPurch.toFixed(2)}</td>
-            <td style={tdStyle}>{totals.dakhil.fruit.toFixed(2)}</td><td style={tdStyle}>{totals.dakhil.veg.toFixed(2)}</td><td style={tdStyle}>{totals.dakhil.paper.toFixed(2)}</td>
-            <td style={tdStyle}>{totals.dakhil.sales.toFixed(2)}</td><td style={tdStyle}>{totals.dakhil.expenses.toFixed(2)}</td><td style={tdStyle}>{totals.dakhil.netSales.toFixed(2)}</td>
-            <td style={tdStyle}>{totals.nasiriya.fruit.toFixed(2)}</td><td style={tdStyle}>{totals.nasiriya.veg.toFixed(2)}</td><td style={tdStyle}>{totals.nasiriya.paper.toFixed(2)}</td>
-            <td style={tdStyle}>{totals.nasiriya.sales.toFixed(2)}</td><td style={tdStyle}>{totals.nasiriya.expenses.toFixed(2)}</td><td style={tdStyle}>{totals.nasiriya.netSales.toFixed(2)}</td>
+          <tr style={{ background: '#facc15', fontWeight: 'bold', color: '#000' }}>
+            <td colSpan={2} style={tdStyle}>{T.totals}</td><td style={tdStyle}>{totals.dakhil.toFixed(2)}</td><td style={tdStyle}>-</td>
+            <td style={tdStyle}>-</td><td style={tdStyle}>{totals.nasiriya.toFixed(2)}</td><td style={tdStyle}>-</td>
+            <td style={tdStyle}>{totals.totalPurch.toFixed(2)}</td><td style={tdStyle}>-</td>
+            <td style={{...tdStyle, background: '#e2e8f0'}}></td>
+            <td colSpan={3} style={tdStyle}>-</td><td style={tdStyle}>{totals.taj.toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
 
-      <style jsx global>{`@media print { aside, header, .no-print { display: none !important; } main { margin: 0 !important; padding: 0 !important; } body { background: white !important; } table { font-size: 10px !important; } }`}</style>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+        <div style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#065f46' }}>مديونية الدخل</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}><span>{T.prevDebt} (06-09):</span> <span>-776.00</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}><span>{T.increase}:</span> <span>{totals.dakhil.toFixed(2)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px', borderTop: '1px solid #ccc', paddingTop: '5px' }}><span>{T.netDebt}:</span> <span>{(totals.dakhil - 776).toFixed(2)}</span></div>
+        </div>
+        <div style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#065f46' }}>مديونية الناصرية</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}><span>{T.prevDebt} (06-09):</span> <span>11906.00</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}><span>{T.increase}:</span> <span>{totals.nasiriya.toFixed(2)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px', borderTop: '1px solid #ccc', paddingTop: '5px' }}><span>{T.netDebt}:</span> <span>{(totals.nasiriya + 11906).toFixed(2)}</span></div>
+        </div>
+        <div style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#065f46' }}>مديونية التاج</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}><span>{T.prevDebt} (06-09):</span> <span>-1994.00</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}><span>{T.increase}:</span> <span>{totals.taj.toFixed(2)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px', borderTop: '1px solid #ccc', paddingTop: '5px' }}><span>{T.netDebt}:</span> <span>{(totals.taj - 1994).toFixed(2)}</span></div>
+        </div>
+      </div>
+
+      <style jsx global>{`@media print { aside, header, .no-print { display: none !important; } main { margin: 0 !important; padding: 0 !important; } body { background: white !important; } table { font-size: 11px !important; } }`}</style>
     </div>
   )
 }
 
-export default function WeeklyReportPage() { return <Suspense fallback={<div>جاري التحميل...</div>}><WeeklyReportContent /></Suspense> }
+export default function RajehReportPage() { return <Suspense fallback={<div>جاري التحميل...</div>}><RajehReportContent /></Suspense> }
 
-const thStyle: React.CSSProperties = { padding: '8px', border: '1px solid #1e40af', fontWeight: 'bold' }
-const tdStyle: React.CSSProperties = { padding: '8px', border: '1px solid #e5e7eb' }
+const thStyle: React.CSSProperties = { padding: '10px', border: '1px solid #1e40af', fontWeight: 'bold' }
+const tdStyle: React.CSSProperties = { padding: '8px', border: '1px solid #e5e7eb', textAlign: 'center' }
 const btnStyle = (bg: string): React.CSSProperties => ({ padding: '10px 20px', background: bg, color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'inherit' })
