@@ -6,22 +6,26 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 const MENU = [
-  { href: '/dashboard', label: '\u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629', icon: '🏠' },
-  { href: '/dashboard/purchases', label: '\u0627\u0644\u0645\u0634\u062A\u0631\u064A\u0627\u062A', icon: '🛒' },
-  { href: '/dashboard/revenues', label: '\u0627\u0644\u0625\u064A\u0631\u0627\u062F\u0627\u062A', icon: '💰' },
-  { href: '/dashboard/transfers', label: '\u0627\u0644\u062A\u062D\u0648\u064A\u0644\u0627\u062A', icon: '🔄' },
-  { href: '/dashboard/debts', label: '\u0627\u0644\u0645\u062F\u064A\u0648\u0646\u064A\u0627\u062A', icon: '📋' },
-  { href: '/dashboard/reports', label: '\u0627\u0644\u062A\u0642\u0627\u0631\u064A\u0631', icon: '📊' },
-  { href: '/dashboard/branches', label: '\u0627\u0644\u0641\u0631\u0648\u0639', icon: '🏬' },
-  { href: '/dashboard/products', label: '\u0627\u0644\u0623\u0635\u0646\u0627\u0641', icon: '📦' },
-  { href: '/dashboard/users', label: '\u0627\u0644\u0645\u0633\u062A\u062E\u062F\u0645\u0648\u0646', icon: '👥' },
-  { href: '/dashboard/settings', label: '\u0627\u0644\u0625\u0639\u062F\u0627\u062F\u0627\u062A', icon: '⚙️' },
+  { href: '/dashboard', label: 'الرئيسية', icon: '🏠' },
+  { href: '/dashboard/daily-receipts?type=vegetable', label: 'استلام خضار', icon: '🥬' },
+  { href: '/dashboard/daily-receipts?type=fruit', label: 'استلام فواكه', icon: '🍎' },
+  { href: '/dashboard/daily-receipts?type=paper', label: 'استلام ورقيات', icon: '📄' },
+  { href: '/dashboard/worker-confirm', label: 'تأكيد استلام العمال', icon: '👷‍♂️' },
+  { href: '/dashboard/worker-approval', label: 'اعتماد الإدارة', icon: '✅' },
+  { href: '/dashboard/revenues', label: 'الإيرادات اليومية', icon: '💰' },
+  { href: '/dashboard/purchases', label: 'فواتير المشتريات', icon: '🧾' },
+  { href: '/dashboard/transfers', label: 'التحويلات', icon: '🔄' },
+  { href: '/dashboard/debts', label: 'المديونيات', icon: '📋' },
+  { href: '/dashboard/reports/weekly', label: 'التقرير الأسبوعي', icon: '📊' },
+  { href: '/dashboard/reports/sales-movement', label: 'حركة المبيعات', icon: '📈' },
+  { href: '/dashboard/reports/jaber', label: 'تقرير جابر', icon: '👨‍💼' },
+  { href: '/dashboard/reports/bilal', label: 'تقرير بلال', icon: '🚚' },
+  { href: '/dashboard/reports/rajeh', label: 'تقرير راجح', icon: '📦' },
+  { href: '/dashboard/branches', label: 'الفروع', icon: '🏬' },
+  { href: '/dashboard/products', label: 'الأصناف', icon: '🍏' },
+  { href: '/dashboard/users', label: 'المستخدمون', icon: '👥' },
+  { href: '/dashboard/settings', label: 'الإعدادات', icon: '⚙️' },
 ]
-
-const APP_NAME = '\u0627\u0636\u0648\u0627\u0621 \u0627\u0644\u0631\u064A\u0641'
-const APP_SUBTITLE = '\u0646\u0638\u0627\u0645 \u0627\u0644\u0625\u062F\u0627\u0631\u0629'
-const LOGGED_IN = '\u0645\u0633\u062C\u0644 \u0627\u0644\u062F\u062E\u0648\u0644:'
-const LOGOUT = '\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062E\u0631\u0648\u062C'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -30,9 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
-    const checkSize = () => {
-      setIsDesktop(window.innerWidth >= 1024)
-    }
+    const checkSize = () => setIsDesktop(window.innerWidth >= 1024)
     checkSize()
     window.addEventListener('resize', checkSize)
     return () => window.removeEventListener('resize', checkSize)
@@ -40,9 +42,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getSession().then((res) => {
-      setEmail(res.data.session?.user.email || '')
-    })
+    supabase.auth.getSession().then((res) => setEmail(res.data.session?.user.email || ''))
   }, [])
 
   useEffect(() => {
@@ -59,44 +59,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Arial' }}>
-
+      
+      {/* Header للجوال */}
       {!isDesktop && (
-        <header style={{
-          background: '#065f46',
-          color: 'white',
-          padding: '15px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-        }}>
-          <button onClick={() => setMenuOpen(!menuOpen)} style={{
-            background: 'rgba(255,255,255,0.15)',
-            border: 'none',
-            color: 'white',
-            fontSize: '22px',
-            padding: '8px 14px',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}>
-            ☰
-          </button>
-
+        <header style={{ background: '#065f46', color: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
+          <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '20px', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer' }}>☰</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{APP_NAME}</span>
-            <div style={{
-              width: '38px',
-              height: '38px',
-              background: 'white',
-              borderRadius: '10px',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
+            <span style={{ fontWeight: 'bold' }}>اضواء الريف</span>
+            <div style={{ width: '35px', height: '35px', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
               <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
           </div>
@@ -104,106 +74,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {!isDesktop && menuOpen && (
-        <div onClick={() => setMenuOpen(false)} style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          zIndex: 998,
-        }} />
+        <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 998 }} />
       )}
 
+      {/* القائمة الجانبية */}
       <aside style={{
-        width: '260px',
-        background: '#065f46',
-        color: '#ffffff',
-        position: 'fixed',
-        top: 0,
-        bottom: 0,
-        right: isSidebarVisible ? 0 : -280,
-        overflowY: 'auto',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 999,
-        transition: 'right 0.3s ease',
+        width: '260px', background: '#065f46', color: 'white', position: 'fixed',
+        right: isSidebarVisible ? 0 : -280, top: 0, bottom: 0, overflowY: 'auto',
+        display: 'flex', flexDirection: 'column', zIndex: 999, transition: 'right 0.3s'
       }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '50px',
-              height: '50px',
-              background: '#ffffff',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-            }}>
-              <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{APP_NAME}</div>
-              <div style={{ fontSize: '11px', opacity: 0.7 }}>{APP_SUBTITLE}</div>
-            </div>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '40px', height: '40px', background: 'white', borderRadius: '8px', overflow: 'hidden' }}>
+            <img src="/logo.png" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 'bold', fontSize: '15px' }}>اضواء الريف</div>
+            <div style={{ fontSize: '10px', opacity: 0.7 }}>نظام الإدارة</div>
           </div>
         </div>
 
-        <nav style={{ padding: '15px 10px', flex: 1 }}>
+        <nav style={{ padding: '10px', flex: 1 }}>
           {MENU.map((item) => {
-            const active = pathname === item.href
+            const active = pathname === item.href.split('?')[0] // للتعامل مع الروابط التي تحتوي على بارامترات
             return (
               <Link key={item.href} href={item.href} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 15px',
-                color: '#ffffff',
-                textDecoration: 'none',
-                borderRadius: '10px',
-                marginBottom: '4px',
-                background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
-                fontSize: '14px',
-                fontWeight: active ? 'bold' : 'normal',
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 15px',
+                color: 'white', textDecoration: 'none', borderRadius: '8px', marginBottom: '2px',
+                background: active ? 'rgba(255,255,255,0.2)' : 'transparent',
+                fontSize: '14px', fontWeight: active ? 'bold' : 'normal'
               }}>
-                <span style={{ fontSize: '18px' }}>{item.icon}</span>
+                <span style={{ fontSize: '16px' }}>{item.icon}</span>
                 <span>{item.label}</span>
               </Link>
             )
           })}
         </nav>
 
-        <div style={{
-          padding: '15px',
-          borderTop: '1px solid rgba(255,255,255,0.15)',
-          background: 'rgba(0,0,0,0.15)',
-        }}>
-          <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: '5px' }}>{LOGGED_IN}</div>
-          <div style={{ fontSize: '12px', marginBottom: '10px', wordBreak: 'break-all' }}>
-            {email || '...'}
-          </div>
-          <button onClick={handleLogout} style={{
-            width: '100%',
-            padding: '8px',
-            background: 'rgba(255,255,255,0.15)',
-            color: '#ffffff',
-            border: '1px solid rgba(255,255,255,0.3)',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontFamily: 'inherit',
-          }}>
-            {LOGOUT}
+        <div style={{ padding: '15px', borderTop: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)' }}>
+          <div style={{ fontSize: '11px', opacity: 0.7, marginBottom: '5px' }}>مسجل الدخول:</div>
+          <div style={{ fontSize: '12px', marginBottom: '10px', wordBreak: 'break-all' }}>{email}</div>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+            تسجيل الخروج
           </button>
         </div>
       </aside>
 
-      <main style={{
-        padding: '20px',
-        minHeight: '100vh',
-        marginRight: isDesktop ? '260px' : '0',
-      }}>
+      {/* المحتوى */}
+      <main style={{ padding: '20px', minHeight: '100vh', marginRight: isDesktop ? '260px' : '0' }}>
         {children}
       </main>
     </div>
