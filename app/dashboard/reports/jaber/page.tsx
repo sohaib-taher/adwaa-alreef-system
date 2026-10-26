@@ -48,7 +48,7 @@ function JaberReportContent() {
 
       const { data: receipts } = await supabase
         .from('daily_receipts')
-        .select(`receipt_date, daily_receipt_items (unit_price, receipt_branch_allocations ( sent_qty, branches(name) ))`)
+        .select(`receipt_date, daily_receipt_items (unit_price, receipt_branch_allocations ( sent_qty, actual_received_qty, worker_status, branches(name) ))`)
         .eq('category_type', 'fruit')
         .eq('company_id', userData.company_id)
         .order('receipt_date', { ascending: true })
@@ -60,7 +60,15 @@ function JaberReportContent() {
         receipt.daily_receipt_items?.forEach((item: any) => {
           item.receipt_branch_allocations?.forEach((alloc: any) => {
             const branchName = (alloc.branches as any)?.name || (alloc.branches as any)?.[0]?.name || ''
-            const total = (Number(alloc.sent_qty) || 0) * (Number(item.unit_price) || 0)
+            
+            // المعادلة الجديدة: إذا كان المدير قد اعتمد الكمية، نأخذ الكمية المستلمة فعلياً، وإلا نأخذ الكمية المرسلة
+            const isApproved = alloc.worker_status === 'admin_approved';
+            const finalQty = isApproved && alloc.actual_received_qty !== null 
+              ? Number(alloc.actual_received_qty) 
+              : Number(alloc.sent_qty);
+              
+            const total = finalQty * (Number(item.unit_price) || 0)
+
             if (branchName.includes('الدخل')) groupedData[date].dakhil += total
             if (branchName.includes('الناصرية')) groupedData[date].nasiriya += total
           })
