@@ -141,8 +141,9 @@ function RevenuesContent() {
     setSaving(false)
   }
 
-  async function handleDelete(id: string) {
+   async function handleDelete(id: string) {
     if (!window.confirm(T.confirmDelete)) return
+    
     const supabase = createClient()
     
     // جلب السجل قبل حذفه
@@ -150,18 +151,35 @@ function RevenuesContent() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', user?.id).single()
 
-    // حذف السجل
-    const { error } = await supabase.from('revenues').delete().eq('id', id)
-    if (error) { alert('خطأ: ' + error.message); return }
-    
-    // تسجيل الحذف في سجل التدقيق
-    await supabase.from('audit_logs').insert({
-      company_id: companyId, user_id: userInfo?.id, action: 'حذف إيراد', table_name: 'revenues',
-      record_id: id, old_values: oldRecord
-    })
+    try {
+      // تنفيذ الحذف
+      const { error, count } = await supabase
+        .from('revenues')
+        .delete({ count: 'exact' })
+        .eq('id', id)
 
-    setMessage(T.deleteSuccess)
-    await loadData()
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      if (count === 0) {
+        throw new Error('لم يتم العثور على السجل أو لا تملك صلاحية لحذفه.')
+      }
+      
+      // تسجيل الحذف في سجل التدقيق (يحدث بعد نجاح الحذف)
+      await supabase.from('audit_logs').insert({
+        company_id: companyId, user_id: userInfo?.id, action: 'حذف إيراد', table_name: 'revenues',
+        record_id: id, old_values: oldRecord
+      })
+
+      setMessage(T.deleteSuccess)
+      await loadData() // تحديث الجدول
+
+    } catch (err: any) {
+      // إذا فشل الحذف، سيظهر لك السبب الدقيق هنا
+      alert('فشل الحذف من قاعدة البيانات! السبب: ' + err.message)
+      console.error('Delete Error:', err)
+    }
   }
 
   const handleEditClick = (row: any) => {
