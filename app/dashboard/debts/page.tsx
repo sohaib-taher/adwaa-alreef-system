@@ -1,351 +1,267 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-const today = new Date().toISOString().slice(0, 10)
+const T = {
+  title: 'إدارة المديونيات والسدادات',
+  subTitle: 'متابعة أرصدة الموردين والمناديب',
+  addNew: 'إضافة حركة جديدة (مديونية / سداد)',
+  editTitle: 'تعديل الحركة',
+  person: 'اسم الشخص / المورد',
+  type: 'النوع',
+  debit: 'مديونية (عليه)',
+  credit: 'سداد (دفع)',
+  branch: 'الفرع',
+  date: 'التاريخ',
+  amount: 'المبلغ',
+  description: 'البيان',
+  save: 'حفظ الحركة',
+  update: 'تحديث الحركة',
+  cancel: 'إلغاء',
+  last30: 'آخر 30 حركة',
+  noData: 'لا توجد حركات مسجلة',
+  loading: 'جاري التحميل...',
+  success: 'تم الحفظ بنجاح',
+  updateSuccess: 'تم التحديث بنجاح',
+  deleteSuccess: 'تم الحذف بنجاح',
+  confirmDelete: 'هل أنت متأكد من حذف هذه الحركة؟ سيتم تسجيلها في سجل التعديلات.',
+  tableDate: 'التاريخ', tablePerson: 'الشخص', tableBranch: 'الفرع', tableType: 'النوع',
+  tableAmount: 'المبلغ', tableDesc: 'البيان', actions: 'الإجراءات', edit: 'تعديل', delete: 'حذف',
+  balancesTitle: 'ملخص الأرصدة الحالية'
+}
 
-export default function DebtsPage() {
+function DebtsContent() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  
   const [debts, setDebts] = useState<any[]>([])
   const [branches, setBranches] = useState<any[]>([])
   const [companyId, setCompanyId] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const [form, setForm] = useState({
-    party_name: 'جابر',
-    party_type: 'person',
-    branch_id: '',
-    debt_date: today,
-    amount: '',
-    type: 'debit',
-    description: '',
+    party_name: '', type: 'debit', branch_id: '', debt_date: new Date().toISOString().slice(0, 10),
+    amount: '', description: ''
   })
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  useEffect(() => { loadData() }, [])
 
   async function loadData() {
     const supabase = createClient()
-    const userRes = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
 
-    if (!userRes.data.user) {
-      window.location.href = '/'
-      return
-    }
+    const { data: userData } = await supabase.from('users').select('company_id').eq('auth_id', user.id).single()
+    if (!userData) return
+    setCompanyId(userData.company_id)
 
-    const userInfoRes = await supabase
-      .from('users')
-      .select('company_id')
-      .eq('auth_id', userRes.data.user.id)
-      .single()
+    const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true).eq('company_id', userData.company_id).order('name')
+    setBranches(br || [])
 
-    const cid = userInfoRes.data?.company_id || ''
-    setCompanyId(cid)
-
-    const brRes = await supabase
-      .from('branches')
-      .select('id, name')
-      .eq('is_active', true)
-      .eq('company_id', cid)
-      .order('name')
-
-    const debRes = await supabase
+    const { data: deb } = await supabase
       .from('debts')
-      .select('id, party_name, party_type, debt_date, amount, type, description, branches(name)')
-      .eq('company_id', cid)
+      .select(`id, party_name, type, debt_date, amount, description, branch_id, branches(name)`)
+      .eq('company_id', userData.company_id)
       .order('created_at', { ascending: false })
       .limit(30)
-
-    setBranches(brRes.data || [])
-    setDebts(debRes.data || [])
+    
+    setDebts(deb || [])
     setLoading(false)
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    setSaving(true)
-    setMessage('')
-
+    setSaving(true); setMessage('')
     const supabase = createClient()
-    const userRes = await supabase.auth.getUser()
-    if (!userRes.data.user) return
 
-    const userInfoRes = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_id', userRes.data.user.id)
-      .single()
-
-    const insertRes = await supabase.from('debts').insert({
-      company_id: companyId,
-      branch_id: form.branch_id || null,
-      party_type: form.party_type,
-      party_name: form.party_name,
-      debt_date: form.debt_date,
-      amount: parseFloat(form.amount) || 0,
-      type: form.type,
-      description: form.description || null,
-      created_by: userInfoRes.data?.id,
-    })
-
-    if (insertRes.error) {
-      setMessage('خطأ: ' + insertRes.error.message)
-      setSaving(false)
-      return
+    if (!form.party_name || !form.amount) {
+      setMessage('الرجاء إدخال اسم الشخص والمبلغ'); setSaving(false); return
     }
 
-    setMessage('تم الحفظ بنجاح')
-    setForm({ ...form, amount: '', description: '' })
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', user?.id).single()
+
+    const record = {
+      company_id: companyId, branch_id: form.branch_id || null,
+      party_type: 'person', party_name: form.party_name,
+      debt_date: form.debt_date, amount: parseFloat(form.amount) || 0,
+      type: form.type, description: form.description || null, created_by: userInfo?.id
+    }
+
+    if (editingId) {
+      const oldRecord = debts.find(d => d.id === editingId)
+      const { error } = await supabase.from('debts').update(record).eq('id', editingId)
+      if (error) { setMessage('خطأ: ' + error.message); setSaving(false); return }
+      
+      await supabase.from('audit_logs').insert({
+        company_id: companyId, user_id: userInfo?.id, action: 'تعديل مديونية', table_name: 'debts',
+        record_id: editingId, old_values: oldRecord, new_values: record
+      })
+      setMessage(T.updateSuccess)
+    } else {
+      const { data: insertedData, error } = await supabase.from('debts').insert(record).select()
+      if (error) { setMessage('خطأ: ' + error.message); setSaving(false); return }
+      
+      await supabase.from('audit_logs').insert({
+        company_id: companyId, user_id: userInfo?.id, action: 'إضافة مديونية', table_name: 'debts',
+        record_id: insertedData[0].id, new_values: record
+      })
+      setMessage(T.success)
+    }
+
+    resetForm()
     await loadData()
     setSaving(false)
   }
 
+  async function handleDelete(id: string) {
+    if (!window.confirm(T.confirmDelete)) return
+    const supabase = createClient()
+    
+    const oldRecord = debts.find(d => d.id === id)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', user?.id).single()
+
+    const { error } = await supabase.from('debts').delete().eq('id', id)
+    if (error) { alert('خطأ: ' + error.message); return }
+    
+    await supabase.from('audit_logs').insert({
+      company_id: companyId, user_id: userInfo?.id, action: 'حذف مديونية', table_name: 'debts',
+      record_id: id, old_values: oldRecord
+    })
+
+    setMessage(T.deleteSuccess)
+    await loadData()
+  }
+
+  const handleEditClick = (row: any) => {
+    setEditingId(row.id)
+    setForm({
+      party_name: row.party_name, type: row.type, branch_id: row.branch_id || '',
+      debt_date: row.debt_date, amount: row.amount.toString(), description: row.description || ''
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const resetForm = () => {
+    setEditingId(null)
+    setForm({ ...form, party_name: '', amount: '', description: '' })
+  }
+
+  // حساب الأرصدة لكل شخص
   const balances: Record<string, number> = {}
-  debts.forEach((d) => {
+  debts.forEach(d => {
     if (!balances[d.party_name]) balances[d.party_name] = 0
     if (d.type === 'debit') balances[d.party_name] += Number(d.amount)
     else balances[d.party_name] -= Number(d.amount)
   })
 
-  if (loading) {
-    return (
-      <div style={{ padding: '50px', textAlign: 'center', color: '#059669' }}>
-        جاري التحميل...
-      </div>
-    )
-  }
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>{T.loading}</div>
 
   return (
-    <div>
-      <div style={{ marginBottom: '25px' }}>
-        <h1 style={{ margin: 0, color: '#065f46', fontSize: '26px' }}>
-          إدارة المديونيات
-        </h1>
-        <p style={{ margin: '5px 0 0', color: '#6b7280', fontSize: '14px' }}>
-          متابعة المديونيات والسدادات
-        </p>
+    <div style={{ padding: '20px', fontFamily: 'Arial', direction: 'rtl' }}>
+      
+      <div style={{ marginBottom: '20px' }}>
+        <h1 style={{ margin: 0, color: '#065f46', fontSize: '24px' }}>{T.title}</h1>
+        <p style={{ margin: '5px 0 0', color: '#6b7280', fontSize: '14px' }}>{T.subTitle}</p>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '15px',
-          marginBottom: '25px',
-        }}
-      >
+      {message && (
+        <div style={{ padding: '12px', marginBottom: '20px', borderRadius: '8px', background: message.includes('بنجاح') ? '#d1fae5' : '#fee2e2', color: message.includes('بنجاح') ? '#065f46' : '#991b1b', fontWeight: 'bold' }}>
+          {message}
+        </div>
+      )}
+
+      {/* ملخص الأرصدة */}
+      <h2 style={{ color: '#374151', fontSize: '18px', marginBottom: '10px' }}>{T.balancesTitle}</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         {Object.entries(balances).map(([name, balance]) => (
-          <div
-            key={name}
-            style={{
-              background: 'white',
-              padding: '20px',
-              borderRadius: '14px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              borderRight: `4px solid ${balance >= 0 ? '#059669' : '#dc2626'}`,
-            }}
-          >
-            <div style={{ color: '#6b7280', fontSize: '13px', marginBottom: '5px' }}>
-              {name}
-            </div>
-            <div
-              style={{
-                fontSize: '24px',
-                fontWeight: 'bold',
-                color: balance >= 0 ? '#059669' : '#dc2626',
-              }}
-            >
+          <div key={name} style={{ background: 'white', padding: '15px', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderRight: `4px solid ${balance >= 0 ? '#059669' : '#dc2626'}` }}>
+            <div style={{ color: '#6b7280', fontSize: '13px', marginBottom: '5px' }}>{name}</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', color: balance >= 0 ? '#059669' : '#dc2626' }}>
               {balance.toFixed(2)} ر.س
             </div>
           </div>
         ))}
       </div>
 
-      <div
-        style={{
-          background: 'white',
-          padding: '25px',
-          borderRadius: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-          marginBottom: '25px',
-        }}
-      >
-        <h2 style={{ margin: '0 0 20px', color: '#065f46', fontSize: '17px' }}>
-          إضافة مديونية أو سداد
+      {/* نموذج الإدخال / التعديل */}
+      <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '25px', border: editingId ? '2px solid #3b82f6' : 'none' }}>
+        <h2 style={{ margin: '0 0 15px', color: editingId ? '#1d4ed8' : '#065f46', fontSize: '18px' }}>
+          {editingId ? T.editTitle : T.addNew}
         </h2>
-
         <form onSubmit={handleSave}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: '15px',
-            }}
-          >
-            <Field label="اسم الشخص">
-              <input
-                type="text"
-                value={form.party_name}
-                onChange={(e) => setForm({ ...form, party_name: e.target.value })}
-                required
-                style={input}
-                placeholder="جابر، بلال، عبده راجح..."
-              />
-            </Field>
-
-            <Field label="النوع">
-              <select
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-                required
-                style={input}
-              >
-                <option value="debit">مديونية</option>
-                <option value="credit">سداد</option>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
+            <div>
+              <label style={labelStyle}>{T.person}</label>
+              <input type="text" value={form.party_name} onChange={e => setForm({...form, party_name: e.target.value})} required style={inputStyle} placeholder="جابر، بلال، الخ..." />
+            </div>
+            <div>
+              <label style={labelStyle}>{T.type}</label>
+              <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} required style={inputStyle}>
+                <option value="debit">{T.debit}</option>
+                <option value="credit">{T.credit}</option>
               </select>
-            </Field>
-
-            <Field label="الفرع">
-              <select
-                value={form.branch_id}
-                onChange={(e) => setForm({ ...form, branch_id: e.target.value })}
-                style={input}
-              >
+            </div>
+            <div>
+              <label style={labelStyle}>{T.branch}</label>
+              <select value={form.branch_id} onChange={e => setForm({...form, branch_id: e.target.value})} style={inputStyle}>
                 <option value="">بدون فرع</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
-            </Field>
-
-            <Field label="التاريخ">
-              <input
-                type="date"
-                value={form.debt_date}
-                onChange={(e) => setForm({ ...form, debt_date: e.target.value })}
-                required
-                style={input}
-              />
-            </Field>
-
-            <Field label="المبلغ">
-              <input
-                type="number"
-                step="0.01"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                required
-                style={input}
-              />
-            </Field>
-
-            <div style={{ gridColumn: '1 / -1' }}>
-              <Field label="البيان">
-                <input
-                  type="text"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  style={input}
-                  placeholder="مثال: مشتريات فواكه"
-                />
-              </Field>
             </div>
+            <div><label style={labelStyle}>{T.date}</label><input type="date" value={form.debt_date} onChange={e => setForm({...form, debt_date: e.target.value})} required style={inputStyle} /></div>
+            <div><label style={labelStyle}>{T.amount}</label><input type="number" step="0.01" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} required style={inputStyle} /></div>
+            <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>{T.description}</label><input type="text" value={form.description} onChange={e => setForm({...form, description: e.target.value})} style={inputStyle} /></div>
           </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              marginTop: '20px',
-              padding: '14px 40px',
-              background: saving ? '#9ca3af' : '#059669',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: saving ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            {saving ? 'جاري الحفظ...' : 'حفظ'}
-          </button>
-
-          {message !== '' && (
-            <div
-              style={{
-                marginTop: '15px',
-                padding: '12px',
-                borderRadius: '8px',
-                background: message.includes('بنجاح') ? '#d1fae5' : '#fee2e2',
-                color: message.includes('بنجاح') ? '#065f46' : '#991b1b',
-                fontWeight: 'bold',
-                fontSize: '14px',
-              }}
-            >
-              {message}
-            </div>
-          )}
+          
+          <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+            <button type="submit" disabled={saving} style={{ padding: '12px 30px', background: saving ? '#9ca3af' : (editingId ? '#3b82f6' : '#059669'), color: 'white', border: 'none', borderRadius: '8px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
+              {saving ? 'جاري الحفظ...' : (editingId ? T.update : T.save)}
+            </button>
+            {editingId && (
+              <button type="button" onClick={resetForm} style={{ padding: '12px 20px', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                {T.cancel}
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
-      <div
-        style={{
-          background: 'white',
-          padding: '25px',
-          borderRadius: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-        }}
-      >
-        <h2 style={{ margin: '0 0 15px', color: '#065f46', fontSize: '17px' }}>
-          آخر 30 حركة
-        </h2>
-
+      {/* جدول العرض */}
+      <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <h2 style={{ margin: '0 0 15px', color: '#065f46', fontSize: '18px' }}>{T.last30}</h2>
         {debts.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#9ca3af', padding: '20px' }}>
-            لا توجد حركات بعد
-          </p>
+          <p style={{ textAlign: 'center', color: '#6b7280' }}>{T.noData}</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: '13px',
-              }}
-            >
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'center' }}>
               <thead>
-                <tr style={{ background: '#f0fdf4', color: '#065f46' }}>
-                  <th style={th}>التاريخ</th>
-                  <th style={th}>الشخص</th>
-                  <th style={th}>الفرع</th>
-                  <th style={th}>النوع</th>
-                  <th style={th}>المبلغ</th>
-                  <th style={th}>البيان</th>
+                <tr style={{ background: '#f0fdf4', color: '#065f46', borderBottom: '2px solid #059669' }}>
+                  <th style={thStyle}>{T.tableDate}</th><th style={thStyle}>{T.tablePerson}</th><th style={thStyle}>{T.tableBranch}</th>
+                  <th style={thStyle}>{T.tableType}</th><th style={thStyle}>{T.tableAmount}</th><th style={thStyle}>{T.tableDesc}</th>
+                  <th style={thStyle}>{T.actions}</th>
                 </tr>
               </thead>
               <tbody>
-                {debts.map((d) => (
-                  <tr key={d.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={td}>{d.debt_date}</td>
-                    <td style={{ ...td, fontWeight: 'bold' }}>{d.party_name}</td>
-                    <td style={td}>{d.branches?.name || '-'}</td>
-                    <td
-                      style={{
-                        ...td,
-                        color: d.type === 'debit' ? '#dc2626' : '#059669',
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      {d.type === 'debit' ? 'مديونية' : 'سداد'}
+                {debts.map(d => (
+                  <tr key={d.id} style={{ borderBottom: '1px solid #e5e7eb', background: editingId === d.id ? '#eff6ff' : 'transparent' }}>
+                    <td style={tdStyle}>{d.debt_date}</td>
+                    <td style={{...tdStyle, fontWeight: 'bold'}}>{d.party_name}</td>
+                    <td style={tdStyle}>{(d.branches as any)?.name || '-'}</td>
+                    <td style={{...tdStyle, color: d.type === 'debit' ? '#dc2626' : '#059669', fontWeight: 'bold'}}>
+                      {d.type === 'debit' ? T.debit : T.credit}
                     </td>
-                    <td style={{ ...td, fontWeight: 'bold' }}>{d.amount}</td>
-                    <td style={td}>{d.description || '-'}</td>
+                    <td style={{...tdStyle, fontWeight: 'bold'}}>{d.amount}</td>
+                    <td style={tdStyle}>{d.description || '-'}</td>
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                        <button onClick={() => handleEditClick(d)} style={{ padding: '6px 12px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{T.edit}</button>
+                        <button onClick={() => handleDelete(d.id)} style={{ padding: '6px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{T.delete}</button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -357,52 +273,11 @@ export default function DebtsPage() {
   )
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div>
-      <label
-        style={{
-          display: 'block',
-          marginBottom: '6px',
-          fontSize: '13px',
-          fontWeight: 'bold',
-          color: '#374151',
-        }}
-      >
-        {label}
-      </label>
-      {children}
-    </div>
-  )
+export default function DebtsPage() {
+  return <Suspense fallback={<div>جاري التحميل...</div>}><DebtsContent /></Suspense>
 }
 
-const input: React.CSSProperties = {
-  width: '100%',
-  padding: '11px 14px',
-  border: '2px solid #e5e7eb',
-  borderRadius: '10px',
-  fontSize: '14px',
-  boxSizing: 'border-box',
-  color: '#111827',
-  background: '#fff',
-  outline: 'none',
-  fontFamily: 'inherit',
-}
-
-const th: React.CSSProperties = {
-  padding: '12px',
-  textAlign: 'right',
-  fontSize: '12px',
-}
-
-const td: React.CSSProperties = {
-  padding: '11px 12px',
-  textAlign: 'right',
-  color: '#374151',
-}
+const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }
+const inputStyle: React.CSSProperties = { width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }
+const thStyle: React.CSSProperties = { padding: '12px', fontWeight: 'bold' }
+const tdStyle: React.CSSProperties = { padding: '10px' }
