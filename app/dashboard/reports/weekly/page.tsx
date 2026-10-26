@@ -87,8 +87,9 @@ function WeeklyReportContent() {
 
       // معالجة المبيعات
       revenues?.forEach(rev => {
-        const isDakhil = rev.branches?.name.includes('الدخل')
-        const isNasiriya = rev.branches?.name.includes('الناصرية')
+        const branchName = (rev.branches as any)?.name || (rev.branches as any)?.[0]?.name || ''
+        const isDakhil = branchName.includes('الدخل')
+        const isNasiriya = branchName.includes('الناصرية')
         const target = isDakhil ? 'dakhil' : isNasiriya ? 'nasiriya' : null
 
         if (target && grouped[rev.revenue_date]) {
@@ -101,8 +102,9 @@ function WeeklyReportContent() {
       receipts?.forEach(rec => {
         rec.daily_receipt_items?.forEach((item: any) => {
           item.receipt_branch_allocations?.forEach((alloc: any) => {
-            const isDakhil = alloc.branches?.name.includes('الدخل')
-            const isNasiriya = alloc.branches?.name.includes('الناصرية')
+            const branchName = (alloc.branches as any)?.name || (alloc.branches as any)?.[0]?.name || ''
+            const isDakhil = branchName.includes('الدخل')
+            const isNasiriya = branchName.includes('الناصرية')
             const target = isDakhil ? 'dakhil' : isNasiriya ? 'nasiriya' : null
             
             if (target && grouped[rec.receipt_date]) {
