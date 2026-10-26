@@ -72,7 +72,7 @@ function DailyReceiptsContent() {
 
     return {
       total_qty: acc.total_qty + (Number(row.total_qty) || 0),
-      total_price: acc.total_price + (totalPrice || 0),
+      total_price: acc.total_price + (((Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0)) * (Number(row.price) || 0)),
       dakhil_qty: acc.dakhil_qty + (Number(row.dakhil_qty) || 0),
       dakhil_total: acc.dakhil_total + (dakhilTotal || 0),
       nasiriya_qty: acc.nasiriya_qty + (Number(row.nasiriya_qty) || 0),
@@ -190,7 +190,8 @@ function DailyReceiptsContent() {
         </thead>
         <tbody>
           {rows.map((row, index) => {
-            const totalPrice = row.total_qty * row.price;
+            const rowTotalQty = (Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0);
+            const totalPrice = rowTotalQty * (Number(row.price) || 0);
             const dakhilTotal = row.dakhil_qty * row.price;
             const nasiriyaTotal = row.nasiriya_qty * row.price;
             const tajTotal = row.taj_qty * row.price;
