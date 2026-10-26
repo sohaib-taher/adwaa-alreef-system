@@ -63,7 +63,58 @@ function DailyReceiptsContent() {
     newRows[index][field] = value
     setRows(newRows)
   }
+    // دالة استقبال البيانات المنسوخة من الإكسل (ذكية وتتجاهل أعمدة الإجماليات)
+  const handlePaste = (e: React.ClipboardEvent<HTMLTableElement>) => {
+    e.preventDefault()
+    const clipboardData = e.clipboardData.getData('Text')
+    const pastedRows = clipboardData.split(/\r?\n/).filter(row => row.trim() !== '')
+    
+    const newRows: any[] = []
+    
+    pastedRows.forEach((rowStr) => {
+      const cols = rowStr.split('\t')
+      
+      // التحقق من أن الصف يحتوي على بيانات (على الأقل 3 أعمدة)
+      if (cols.length >= 3) {
+        // الترتيب المتوقع من إكسل الزبون (14 عمود):
+        // [0] التاريخ، [1] المورد، [2] الصنف، [3] الكمية الكلية، [4] السعر، [5] الإجمالي، 
+        // [6] كمية الدخل، [7] إجمالي الدخل، [8] كمية الناصرية، [9] إجمالي الناصرية، 
+        // [10] كمية التاج، [11] إجمالي التاج، [12] كمية الرابع، [13] إجمالي الرابع.
+        
+        // إذا كان عدد الأعمدة 14 أو أكثر (نسخ الجدول كاملاً)
+        if (cols.length >= 13) {
+          newRows.push({
+            supplier_name: cols[1] || '',
+            product_name: cols[2] || '',
+            price: Number(cols[4]) || 0,
+            dakhil_qty: Number(cols[6]) || 0,
+            nasiriya_qty: Number(cols[8]) || 0,
+            taj_qty: Number(cols[10]) || 0,
+            fourth_qty: Number(cols[12]) || 0,
+          })
+        } 
+        // إذا كان عدد الأعمدة 7 فقط (نسخ الأعمدة الأساسية فقط)
+        else if (cols.length >= 7) {
+           newRows.push({
+            supplier_name: cols[0] || '',
+            product_name: cols[1] || '',
+            price: Number(cols[2]) || 0,
+            dakhil_qty: Number(cols[3]) || 0,
+            nasiriya_qty: Number(cols[4]) || 0,
+            taj_qty: Number(cols[5]) || 0,
+            fourth_qty: Number(cols[6]) || 0,
+          })
+        }
+      }
+    })
 
+    if (newRows.length > 0) {
+      setRows(newRows)
+      alert(`تم لصق ${newRows.length} صنف بنجاح! يرجى مراجعة الأسعار قبل الحفظ.`)
+    } else {
+      alert('تأكد من نسخ الصفوف بالشكل الصحيح من الإكسل.')
+    }
+  }
   const addRow = () => {
     setRows([...rows, { product_name: '', supplier_name: '', price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }])
   }
@@ -238,7 +289,7 @@ function DailyReceiptsContent() {
         <div style={{ padding: '10px', marginBottom: '15px', borderRadius: '6px', background: message.includes('بنجاح') ? '#d1fae5' : '#fee2e2', color: message.includes('بنجاح') ? '#065f46' : '#991b1b', fontWeight: 'bold' }}>{message}</div>
       )}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap' }}>
+        <table onPaste={handlePaste} style={{ width: '100%', borderCollapse: 'collapse', background: 'white', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap' }}>
         <thead>
           <tr style={{ background: '#0f172a', color: 'white' }}>
             <th rowSpan={2} style={thStyle}>{T.date}</th>
