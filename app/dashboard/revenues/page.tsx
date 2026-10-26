@@ -141,44 +141,44 @@ function RevenuesContent() {
     setSaving(false)
   }
 
-   async function handleDelete(id: string) {
+     async function handleDelete(id: string) {
     if (!window.confirm(T.confirmDelete)) return
     
     const supabase = createClient()
     
-    // جلب السجل قبل حذفه
     const oldRecord = revenues.find(r => r.id === id)
     const { data: { user } } = await supabase.auth.getUser()
     const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', user?.id).single()
 
     try {
-      // تنفيذ الحذف
+      // 1. تنفيذ الحذف
       const { error, count } = await supabase
         .from('revenues')
         .delete({ count: 'exact' })
         .eq('id', id)
 
-      if (error) {
-        throw new Error(error.message)
-      }
+      if (error) throw new Error(error.message)
 
-      if (count === 0) {
-        throw new Error('لم يتم العثور على السجل أو لا تملك صلاحية لحذفه.')
-      }
-      
-      // تسجيل الحذف في سجل التدقيق (يحدث بعد نجاح الحذف)
-      await supabase.from('audit_logs').insert({
-        company_id: companyId, user_id: userInfo?.id, action: 'حذف إيراد', table_name: 'revenues',
-        record_id: id, old_values: oldRecord
+      // 2. تسجيل الحذف في سجل التدقيق (مع فحص الأخطاء)
+      const { error: logError } = await supabase.from('audit_logs').insert({
+        company_id: companyId, 
+        user_id: userInfo?.id, 
+        action: 'حذف إيراد', 
+        table_name: 'revenues',
+        record_id: id, 
+        old_values: oldRecord
       })
 
+      if (logError) {
+        // إذا فشل السجل، نظهر تنبيه ولكن نعتبر الحذف ناجحاً
+        alert('تم الحذف، ولكن فشل تسجيل الحركة في السجل: ' + logError.message)
+      }
+
       setMessage(T.deleteSuccess)
-      await loadData() // تحديث الجدول
+      await loadData()
 
     } catch (err: any) {
-      // إذا فشل الحذف، سيظهر لك السبب الدقيق هنا
       alert('فشل الحذف من قاعدة البيانات! السبب: ' + err.message)
-      console.error('Delete Error:', err)
     }
   }
 
