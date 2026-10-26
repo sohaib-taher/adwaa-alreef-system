@@ -110,6 +110,13 @@ function RevenuesContent() {
     }
 
     const { data: { user } } = await supabase.auth.getUser()
+    
+    // الإصلاح: جلب id المستخدم من جدول users بدلاً من auth_id
+    const { data: userInfo } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', user?.id)
+      .single()
 
     const { error } = await supabase.from('revenues').insert({
       company_id: companyId,
@@ -121,7 +128,7 @@ function RevenuesContent() {
       invoices: invoices,
       total_sales: totalSales,
       notes: form.notes || null,
-      created_by: user?.id
+      created_by: userInfo?.id // تم التعديل هنا
     })
 
     if (error) {
