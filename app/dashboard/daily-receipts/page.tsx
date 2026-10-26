@@ -35,8 +35,6 @@ function DailyReceiptsContent() {
   const [isTaxEnabled, setIsTaxEnabled] = useState(type === 'fruit')
   
   const [branches, setBranches] = useState<any[]>([])
-  const [existingProducts, setExistingProducts] = useState<any[]>([])
-  const [existingSuppliers, setExistingSuppliers] = useState<any[]>([])
 
   const [rows, setRows] = useState<any[]>([
     { product_name: '', supplier_name: '', total_qty: 0, price: 0, dakhil_qty: 0, nasiriya_qty: 0, taj_qty: 0, fourth_qty: 0 }
@@ -45,21 +43,11 @@ function DailyReceiptsContent() {
   useEffect(() => {
     async function loadData() {
       const supabase = createClient()
-      
       const { data: br } = await supabase.from('branches').select('id, name').eq('is_active', true)
       setBranches(br || [])
-
-      const { data: sup } = await supabase.from('suppliers').select('name').eq('is_active', true)
-      setExistingSuppliers(sup || [])
-
-      const { data: cat } = await supabase.from('categories').select('id').eq('type', type).single()
-      if (cat) {
-        const { data: prod } = await supabase.from('products').select('name').eq('category_id', cat.id).eq('is_active', true)
-        setExistingProducts(prod || [])
-      }
     }
     loadData()
-  }, [type])
+  }, [])
 
   const handleRowChange = (index: number, field: string, value: any) => {
     const newRows = [...rows]
@@ -102,7 +90,6 @@ function DailyReceiptsContent() {
 
         if (itemError) throw itemError
 
-        // توزيع الفروع (بناءً على أسماء الفروع أو معرفاتها)
         const dist = [
           { qty: row.dakhil_qty, nameMatch: 'الدخل' },
           { qty: row.nasiriya_qty, nameMatch: 'الناصرية' },
@@ -135,15 +122,6 @@ function DailyReceiptsContent() {
   return (
     <div style={{ padding: '10px', fontFamily: 'Arial', direction: 'rtl', overflowX: 'auto' }}>
       
-      {/* Datalists للأصناف والموردين (تجمع بين الاختيار والكتابة) */}
-      <datalist id="products_list">
-        {existingProducts.map((p, i) => <option key={i} value={p.name} />)}
-      </datalist>
-      <datalist id="suppliers_list">
-        {existingSuppliers.map((s, i) => <option key={i} value={s.name} />)}
-      </datalist>
-
-      {/* الشريط العلوي */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: 'white', padding: '10px 15px', borderRadius: '10px' }}>
         <h1 style={{ margin: 0, color: '#065f46', fontSize: '22px' }}>{getTitle()}</h1>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
@@ -161,10 +139,8 @@ function DailyReceiptsContent() {
         <div style={{ padding: '10px', marginBottom: '15px', borderRadius: '6px', background: '#d1fae5', color: '#065f46', fontWeight: 'bold' }}>{message}</div>
       )}
 
-      {/* الجدول المطابق للإكسل */}
       <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', textAlign: 'center', fontSize: '13px', whiteSpace: 'nowrap' }}>
         <thead>
-          {/* الصف الأول من الترويسة */}
           <tr style={{ background: '#1e3a8a', color: 'white' }}>
             <th rowSpan={2} style={thStyle}>{T.date}</th>
             <th rowSpan={2} style={thStyle}>{T.supplier}</th>
@@ -177,7 +153,6 @@ function DailyReceiptsContent() {
             <th colSpan={2} style={thStyle}>{T.brTaj}</th>
             <th colSpan={2} style={thStyle}>{T.brFourth}</th>
           </tr>
-          {/* الصف الثاني من الترويسة */}
           <tr style={{ background: '#3b82f6', color: 'white' }}>
             <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
             <th style={thStyle}>{T.qty}</th><th style={thStyle}>{T.total}</th>
@@ -197,10 +172,12 @@ function DailyReceiptsContent() {
               <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={tdStyle}>{date}</td>
                 <td style={tdStyle}>
-                  <input list="suppliers_list" placeholder="المورد" value={row.supplier_name} onChange={(e) => handleRowChange(index, 'supplier_name', e.target.value)} style={inputStyle} />
+                  {/* حقل كتابة حر بدون قوائم منسدلة */}
+                  <input type="text" placeholder="اكتب المورد..." value={row.supplier_name} onChange={(e) => handleRowChange(index, 'supplier_name', e.target.value)} style={inputStyle} />
                 </td>
                 <td style={tdStyle}>
-                  <input list="products_list" placeholder="الصنف" value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} />
+                  {/* حقل كتابة حر بدون قوائم منسدلة */}
+                  <input type="text" placeholder="اكتب الصنف..." value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} />
                 </td>
                 <td style={tdStyle}><input type="number" value={row.total_qty || ''} onChange={(e) => handleRowChange(index, 'total_qty', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={tdStyle}><input type="number" value={row.price || ''} onChange={(e) => handleRowChange(index, 'price', Number(e.target.value))} style={inputStyle} /></td>
