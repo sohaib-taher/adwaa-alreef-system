@@ -37,26 +37,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setMenuOpen(false)
   }, [pathname])
 
-  useEffect(() => {
+    useEffect(() => {
     const supabase = createClient()
     let isMounted = true
 
-    // إضافة مؤقت لعدم تعليق النظام إذا فشلت المصادقة
-    const timeout = setTimeout(() => {
-      if (isMounted && !email) setEmail('...')
-    }, 3000)
-
+    // فحص سريع للجلسة
     supabase.auth.getSession().then((res) => {
-      clearTimeout(timeout)
-      if (isMounted && res.data.session) {
+      if (isMounted) {
+        if (!res.data.session) {
+          // إذا لم توجد جلسة، يطرد المستخدم لصفحة الدخول فوراً
+          window.location.href = '/' 
+          return
+        }
         setEmail(res.data.session.user.email || '')
       }
-    }).catch(() => clearTimeout(timeout))
+    }).catch(() => {
+      if (isMounted) window.location.href = '/'
+    })
 
-    return () => {
-      isMounted = false
-      clearTimeout(timeout)
-    }
+    return () => { isMounted = false }
   }, [])
 
   const handleLogout = async () => {
