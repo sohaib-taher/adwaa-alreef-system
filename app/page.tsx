@@ -1,223 +1,151 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
-const APP_NAME = '\u0627\u0636\u0648\u0627\u0621 \u0627\u0644\u0631\u064A\u0641'
-const SUBTITLE = '\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644'
-const LABEL_EMAIL = '\u0627\u0644\u0628\u0631\u064A\u062F \u0627\u0644\u0625\u0644\u0643\u062A\u0631\u0648\u0646\u064A'
-const LABEL_PASSWORD = '\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631'
-const BTN_LOGIN = '\u062F\u062E\u0648\u0644'
-const LOADING_TEXT = '\u062C\u0627\u0631\u064A \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644...'
+const T = {
+  mainTitle: 'لوحة التحكم الرئيسية',
+  subTitle: 'نظرة عامة وإدارة النظام',
+  
+  dailyOps: 'العمليات اليومية',
+  receiptVeg: 'استلام خضار',
+  receiptFruit: 'استلام فواكه',
+  workerConfirm: 'تأكيد استلام العمال',
+  workerApproval: 'اعتماد الإدارة',
+  revenues: 'الإيرادات اليومية',
+  purchases: 'فواتير المشتريات',
 
-export default function Home() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [checking, setChecking] = useState(true)
-  const [message, setMessage] = useState('')
+  reports: 'التقارير والمناديب',
+  weeklyReport: 'التقرير الأسبوعي',
+  salesMovement: 'حركة المبيعات',
+  jaber: 'تقرير جابر (فواكه)',
+  bilal: 'تقرير بلال (خضار)',
+  rajeh: 'تقرير عبده راجح (ورقيات)',
+
+  admin: 'الإدارة والإعدادات',
+  branches: 'الفروع',
+  products: 'الأصناف',
+  users: 'المستخدمون',
+  settings: 'الإعدادات'
+}
+
+export default function Dashboard() {
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then((res) => {
-      if (res.data.session) {
-        window.location.href = '/dashboard'
-      } else {
-        setChecking(false)
-      }
+      if (!res.data.session) window.location.href = '/'
+      else setLoading(false)
     })
   }, [])
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setMessage('')
-
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      setMessage(error.message)
-      setLoading(false)
-      return
-    }
-
-    window.location.href = '/dashboard'
-  }
-
-  if (checking) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#10b981',
-        color: 'white',
-        fontSize: '18px',
-        fontFamily: 'Arial',
-      }}>
-        ...
-      </div>
-    )
-  }
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center', color: '#059669' }}>جاري التحميل...</div>
 
   return (
-    <div dir="rtl" style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-      fontFamily: 'Arial',
-      padding: '20px',
-    }}>
-      <div style={{
-        background: 'white',
-        padding: '40px 35px',
-        borderRadius: '20px',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-        width: '100%',
-        maxWidth: '420px',
-      }}>
-        <div style={{
-          width: '180px',
-          height: '180px',
-          margin: '0 auto 20px',
-          background: '#ffffff',
-          borderRadius: '16px',
-          padding: '15px',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxSizing: 'border-box',
-        }}>
-          <img
-            src="/logo.png"
-            alt="logo"
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-          />
-        </div>
+    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'Arial' }}>
+      
+      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+        <h1 style={{ color: '#065f46', fontSize: '28px', margin: '0 0 10px' }}>{T.mainTitle}</h1>
+        <p style={{ color: '#6b7280', fontSize: '16px', margin: 0 }}>{T.subTitle}</p>
+      </div>
 
-        <h1 style={{
-          textAlign: 'center',
-          marginBottom: '8px',
-          color: '#059669',
-          fontSize: '26px',
-          fontWeight: 'bold',
-        }}>
-          {APP_NAME}
-        </h1>
+      {/* قسم العمليات اليومية */}
+      <h2 style={{ color: '#374151', fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>{T.dailyOps}</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px', marginBottom: '40px' }}>
+        <Link href="/dashboard/daily-receipts?type=vegetable" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>🥬</span>
+          <span style={titleStyle}>{T.receiptVeg}</span>
+        </Link>
+        <Link href="/dashboard/daily-receipts?type=fruit" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>🍎</span>
+          <span style={titleStyle}>{T.receiptFruit}</span>
+        </Link>
+        <Link href="/dashboard/worker-confirm" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>👷‍♂️</span>
+          <span style={titleStyle}>{T.workerConfirm}</span>
+        </Link>
+        <Link href="/dashboard/worker-approval" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>✅</span>
+          <span style={titleStyle}>{T.workerApproval}</span>
+        </Link>
+        <Link href="/dashboard/revenues" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>💰</span>
+          <span style={titleStyle}>{T.revenues}</span>
+        </Link>
+        <Link href="/dashboard/purchases" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>🧾</span>
+          <span style={titleStyle}>{T.purchases}</span>
+        </Link>
+      </div>
 
-        <p style={{
-          textAlign: 'center',
-          color: '#666',
-          marginBottom: '30px',
-          fontSize: '15px',
-        }}>
-          {SUBTITLE}
-        </p>
+      {/* قسم التقارير */}
+      <h2 style={{ color: '#374151', fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>{T.reports}</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px', marginBottom: '40px' }}>
+        <Link href="/dashboard/reports/weekly" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>📊</span>
+          <span style={titleStyle}>{T.weeklyReport}</span>
+        </Link>
+        <Link href="/dashboard/reports/sales-movement" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>📈</span>
+          <span style={titleStyle}>{T.salesMovement}</span>
+        </Link>
+        <Link href="/dashboard/reports/jaber" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>👨‍💼</span>
+          <span style={titleStyle}>{T.jaber}</span>
+        </Link>
+        <Link href="/dashboard/reports/bilal" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>🚚</span>
+          <span style={titleStyle}>{T.bilal}</span>
+        </Link>
+        <Link href="/dashboard/reports/rajeh" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>📦</span>
+          <span style={titleStyle}>{T.rajeh}</span>
+        </Link>
+      </div>
 
-        <form onSubmit={handleLogin}>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: '#333',
-              fontWeight: 'bold',
-              fontSize: '15px',
-            }}>
-              {LABEL_EMAIL}
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                border: '2px solid #d1d5db',
-                borderRadius: '10px',
-                fontSize: '16px',
-                boxSizing: 'border-box',
-                color: '#111827',
-                background: '#ffffff',
-                outline: 'none',
-              }}
-              placeholder="example@email.com"
-            />
-          </div>
-
-          <div style={{ marginBottom: '25px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: '#333',
-              fontWeight: 'bold',
-              fontSize: '15px',
-            }}>
-              {LABEL_PASSWORD}
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                border: '2px solid #d1d5db',
-                borderRadius: '10px',
-                fontSize: '16px',
-                boxSizing: 'border-box',
-                color: '#111827',
-                background: '#ffffff',
-                outline: 'none',
-              }}
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '15px',
-              background: loading ? '#9ca3af' : '#059669',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: '17px',
-              fontWeight: 'bold',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            {loading ? LOADING_TEXT : BTN_LOGIN}
-          </button>
-        </form>
-
-        {message && (
-          <p style={{
-            textAlign: 'center',
-            marginTop: '20px',
-            padding: '12px',
-            borderRadius: '8px',
-            background: '#fee2e2',
-            color: '#991b1b',
-            fontSize: '14px',
-            fontWeight: 'bold',
-          }}>
-            {message}
-          </p>
-        )}
+      {/* قسم الإدارة */}
+      <h2 style={{ color: '#374151', fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>{T.admin}</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px' }}>
+        <Link href="/dashboard/branches" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>🏬</span>
+          <span style={titleStyle}>{T.branches}</span>
+        </Link>
+        <Link href="/dashboard/products" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>🍏</span>
+          <span style={titleStyle}>{T.products}</span>
+        </Link>
+        <Link href="/dashboard/users" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>👥</span>
+          <span style={titleStyle}>{T.users}</span>
+        </Link>
+        <Link href="/dashboard/settings" style={cardStyle}>
+          <span style={{ fontSize: '35px', marginBottom: '10px' }}>⚙️</span>
+          <span style={titleStyle}>{T.settings}</span>
+        </Link>
       </div>
     </div>
   )
+}
+
+const cardStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'white',
+  padding: '25px 15px',
+  borderRadius: '16px',
+  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+  textDecoration: 'none',
+  border: '1px solid #f3f4f6',
+  transition: 'transform 0.2s'
+}
+
+const titleStyle: React.CSSProperties = {
+  color: '#1f2937',
+  fontWeight: 'bold',
+  fontSize: '15px',
+  textAlign: 'center'
 }
