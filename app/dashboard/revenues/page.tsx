@@ -5,29 +5,30 @@ import { createClient } from '@/lib/supabase/client'
 
 const T = {
   title: 'إدارة الإيرادات اليومية',
-  subTitle: 'تسجيل الإيرادات اليومية (شبكة، كاش، مصروفات، فواتير)',
   addNew: 'إضافة إيراد جديد',
+  editTitle: 'تعديل الإيراد',
   date: 'التاريخ',
   branch: 'الفرع',
   network: 'الشبكة (البنك)',
   cash: 'الكاش',
   expenses: 'المصروفات',
   invoices: 'الفواتير',
-  totalSales: 'صافي المبيعات',
+  totalSales: 'إجمالي المبيعات',
   notes: 'ملاحظات',
   save: 'حفظ الإيراد',
+  update: 'تحديث الإيراد',
+  cancel: 'إلغاء التعديل',
   last20: 'آخر 20 إيراد',
   loading: 'جاري التحميل...',
-  success: 'تم حفظ الإيراد بنجاح!',
+  success: 'تم الحفظ بنجاح!',
+  updateSuccess: 'تم التحديث بنجاح!',
+  deleteSuccess: 'تم الحذف بنجاح!',
   errorDuplicate: 'يوجد إيراد مسجل لهذا الفرع في هذا التاريخ مسبقاً!',
+  confirmDelete: 'هل أنت متأكد من حذف هذا الإيراد؟ (لا يمكن التراجع)',
   noData: 'لا توجد إيرادات مسجلة',
-  tableDate: 'التاريخ',
-  tableBranch: 'الفرع',
-  tableNetwork: 'الشبكة',
-  tableCash: 'الكاش',
-  tableExpenses: 'المصروفات',
-  tableInvoices: 'الفواتير',
-  tableTotal: 'إجمالي المبيعات'
+  tableDate: 'التاريخ', tableBranch: 'الفرع', tableNetwork: 'الشبكة', tableCash: 'الكاش',
+  tableExpenses: 'المصروفات', tableInvoices: 'الفواتير', tableTotal: 'الصافي',
+  actions: 'الإجراءات', edit: 'تعديل', delete: 'حذف'
 }
 
 function RevenuesContent() {
@@ -38,20 +39,14 @@ function RevenuesContent() {
   const [branches, setBranches] = useState<any[]>([])
   const [revenues, setRevenues] = useState<any[]>([])
   const [companyId, setCompanyId] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const [form, setForm] = useState({
     revenue_date: new Date().toISOString().slice(0, 10),
-    branch_id: '',
-    network_amount: '',
-    cash_amount: '',
-    expenses: '',
-    invoices: '',
-    notes: '',
+    branch_id: '', network_amount: '', cash_amount: '', expenses: '', invoices: '', notes: '',
   })
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  useEffect(() => { loadData() }, [])
 
   async function loadData() {
     const supabase = createClient()
@@ -67,7 +62,7 @@ function RevenuesContent() {
 
     const { data: rev } = await supabase
       .from('revenues')
-      .select(`id, revenue_date, network_amount, cash_amount, expenses, invoices, total_sales, branches(name)`)
+      .select(`id, revenue_date, network_amount, cash_amount, expenses, invoices, total_sales, notes, branch_id, branches(name)`)
       .eq('company_id', userData.company_id)
       .order('created_at', { ascending: false })
       .limit(20)
@@ -80,68 +75,75 @@ function RevenuesContent() {
   const cash = parseFloat(form.cash_amount) || 0
   const expenses = parseFloat(form.expenses) || 0
   const invoices = parseFloat(form.invoices) || 0
-  // صافي المبيعات = (شبكة + كاش) - (مصروفات + فواتير)
   const totalSales = (network + cash) - (expenses + invoices)
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    setSaving(true)
-    setMessage('')
+    setSaving(true); setMessage('')
     const supabase = createClient()
 
     if (!form.branch_id) {
-      setMessage('الرجاء اختيار الفرع')
-      setSaving(false)
-      return
+      setMessage('الرجاء اختيار الفرع'); setSaving(false); return
     }
 
-    // التحقق من التكرار (نفس الفرع ونفس التاريخ)
-    const { data: existing } = await supabase
-      .from('revenues')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('branch_id', form.branch_id)
-      .eq('revenue_date', form.revenue_date)
-      .maybeSingle()
+    // التحقق من التكرار (تجاهل السجل الحالي إذا كنا في وضع التعديل)
+    let duplicateQuery = supabase.from('revenues').select('id')
+      .eq('company_id', companyId).eq('branch_id', form.branch_id).eq('revenue_date', form.revenue_date)
+    
+    if (editingId) duplicateQuery = duplicateQuery.neq('id', editingId)
 
-    if (existing) {
-      setMessage(T.errorDuplicate)
-      setSaving(false)
-      return
-    }
+    const { data: existing } = await duplicateQuery.maybeSingle()
+
+    if (existing) { setMessage(T.errorDuplicate); setSaving(false); return }
 
     const { data: { user } } = await supabase.auth.getUser()
-    
-    // الإصلاح: جلب id المستخدم من جدول users بدلاً من auth_id
-    const { data: userInfo } = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_id', user?.id)
-      .single()
+    const { data: userInfo } = await supabase.from('users').select('id').eq('auth_id', user?.id).single()
 
-    const { error } = await supabase.from('revenues').insert({
-      company_id: companyId,
-      branch_id: form.branch_id,
-      revenue_date: form.revenue_date,
-      network_amount: network,
-      cash_amount: cash,
-      expenses: expenses,
-      invoices: invoices,
-      total_sales: totalSales,
-      notes: form.notes || null,
-      created_by: userInfo?.id // تم التعديل هنا
-    })
-
-    if (error) {
-      setMessage('حدث خطأ: ' + error.message)
-      setSaving(false)
-      return
+    const record = {
+      company_id: companyId, branch_id: form.branch_id, revenue_date: form.revenue_date,
+      network_amount: network, cash_amount: cash, expenses: expenses, invoices: invoices,
+      total_sales: totalSales, notes: form.notes || null, created_by: userInfo?.id
     }
 
-    setMessage(T.success)
-    setForm({ ...form, network_amount: '', cash_amount: '', expenses: '', invoices: '', notes: '' })
+    if (editingId) {
+      // تحديث سجل موجود
+      const { error } = await supabase.from('revenues').update(record).eq('id', editingId)
+      if (error) { setMessage('خطأ: ' + error.message); setSaving(false); return }
+      setMessage(T.updateSuccess)
+    } else {
+      // إضافة سجل جديد
+      const { error } = await supabase.from('revenues').insert(record)
+      if (error) { setMessage('خطأ: ' + error.message); setSaving(false); return }
+      setMessage(T.success)
+    }
+
+    resetForm()
     await loadData()
     setSaving(false)
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm(T.confirmDelete)) return
+    const supabase = createClient()
+    const { error } = await supabase.from('revenues').delete().eq('id', id)
+    if (error) { alert('خطأ: ' + error.message); return }
+    setMessage(T.deleteSuccess)
+    await loadData()
+  }
+
+  const handleEditClick = (row: any) => {
+    setEditingId(row.id)
+    setForm({
+      revenue_date: row.revenue_date, branch_id: row.branch_id,
+      network_amount: row.network_amount.toString(), cash_amount: row.cash_amount.toString(),
+      expenses: row.expenses.toString(), invoices: row.invoices.toString(), notes: row.notes || ''
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' }) // التمرير للأعلى للنموذج
+  }
+
+  const resetForm = () => {
+    setEditingId(null)
+    setForm({ ...form, network_amount: '', cash_amount: '', expenses: '', invoices: '', notes: '' })
   }
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center', color: '#059669' }}>{T.loading}</div>
@@ -151,7 +153,6 @@ function RevenuesContent() {
       
       <div style={{ marginBottom: '20px' }}>
         <h1 style={{ margin: 0, color: '#065f46', fontSize: '24px' }}>{T.title}</h1>
-        <p style={{ margin: '5px 0 0', color: '#6b7280', fontSize: '14px' }}>{T.subTitle}</p>
       </div>
 
       {message && (
@@ -160,50 +161,38 @@ function RevenuesContent() {
         </div>
       )}
 
-      {/* نموذج الإدخال */}
-      <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '25px' }}>
-        <h2 style={{ margin: '0 0 15px', color: '#065f46', fontSize: '18px' }}>{T.addNew}</h2>
+      {/* نموذج الإدخال / التعديل */}
+      <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '25px', border: editingId ? '2px solid #3b82f6' : 'none' }}>
+        <h2 style={{ margin: '0 0 15px', color: editingId ? '#1d4ed8' : '#065f46', fontSize: '18px' }}>
+          {editingId ? T.editTitle : T.addNew}
+        </h2>
         <form onSubmit={handleSave}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-            <div>
-              <label style={labelStyle}>{T.date}</label>
-              <input type="date" value={form.revenue_date} onChange={e => setForm({...form, revenue_date: e.target.value})} required style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>{T.branch}</label>
+            <div><label style={labelStyle}>{T.date}</label><input type="date" value={form.revenue_date} onChange={e => setForm({...form, revenue_date: e.target.value})} required style={inputStyle} /></div>
+            <div><label style={labelStyle}>{T.branch}</label>
               <select value={form.branch_id} onChange={e => setForm({...form, branch_id: e.target.value})} required style={inputStyle}>
                 <option value="">اختر الفرع</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
-            <div>
-              <label style={labelStyle}>{T.network}</label>
-              <input type="number" step="0.01" value={form.network_amount} onChange={e => setForm({...form, network_amount: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>{T.cash}</label>
-              <input type="number" step="0.01" value={form.cash_amount} onChange={e => setForm({...form, cash_amount: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>{T.expenses}</label>
-              <input type="number" step="0.01" value={form.expenses} onChange={e => setForm({...form, expenses: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>{T.invoices}</label>
-              <input type="number" step="0.01" value={form.invoices} onChange={e => setForm({...form, invoices: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>{T.totalSales}</label>
-              <input type="text" value={totalSales.toFixed(2)} readOnly style={{...inputStyle, background: '#dcfce7', fontWeight: 'bold', color: '#065f46'}} />
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={labelStyle}>{T.notes}</label>
-              <input type="text" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} style={inputStyle} />
-            </div>
+            <div><label style={labelStyle}>{T.network}</label><input type="number" step="0.01" value={form.network_amount} onChange={e => setForm({...form, network_amount: e.target.value})} style={inputStyle} /></div>
+            <div><label style={labelStyle}>{T.cash}</label><input type="number" step="0.01" value={form.cash_amount} onChange={e => setForm({...form, cash_amount: e.target.value})} style={inputStyle} /></div>
+            <div><label style={labelStyle}>{T.expenses}</label><input type="number" step="0.01" value={form.expenses} onChange={e => setForm({...form, expenses: e.target.value})} style={inputStyle} /></div>
+            <div><label style={labelStyle}>{T.invoices}</label><input type="number" step="0.01" value={form.invoices} onChange={e => setForm({...form, invoices: e.target.value})} style={inputStyle} /></div>
+            <div><label style={labelStyle}>{T.totalSales}</label><input type="text" value={totalSales.toFixed(2)} readOnly style={{...inputStyle, background: '#dcfce7', fontWeight: 'bold', color: '#065f46'}} /></div>
+            <div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>{T.notes}</label><input type="text" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} style={inputStyle} /></div>
           </div>
-          <button type="submit" disabled={saving} style={{ marginTop: '20px', padding: '12px 30px', background: saving ? '#9ca3af' : '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-            {saving ? 'جاري الحفظ...' : T.save}
-          </button>
+          
+          <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+            <button type="submit" disabled={saving} style={{ padding: '12px 30px', background: saving ? '#9ca3af' : (editingId ? '#3b82f6' : '#059669'), color: 'white', border: 'none', borderRadius: '8px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
+              {saving ? 'جاري الحفظ...' : (editingId ? T.update : T.save)}
+            </button>
+            {editingId && (
+              <button type="button" onClick={resetForm} style={{ padding: '12px 20px', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                {T.cancel}
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
@@ -217,18 +206,14 @@ function RevenuesContent() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'center' }}>
               <thead>
                 <tr style={{ background: '#f0fdf4', color: '#065f46', borderBottom: '2px solid #059669' }}>
-                  <th style={thStyle}>{T.tableDate}</th>
-                  <th style={thStyle}>{T.tableBranch}</th>
-                  <th style={thStyle}>{T.tableNetwork}</th>
-                  <th style={thStyle}>{T.tableCash}</th>
-                  <th style={thStyle}>{T.tableExpenses}</th>
-                  <th style={thStyle}>{T.tableInvoices}</th>
-                  <th style={thStyle}>{T.tableTotal}</th>
+                  <th style={thStyle}>{T.tableDate}</th><th style={thStyle}>{T.tableBranch}</th><th style={thStyle}>{T.tableNetwork}</th>
+                  <th style={thStyle}>{T.tableCash}</th><th style={thStyle}>{T.tableExpenses}</th><th style={thStyle}>{T.tableInvoices}</th>
+                  <th style={thStyle}>{T.tableTotal}</th><th style={thStyle}>{T.actions}</th>
                 </tr>
               </thead>
               <tbody>
                 {revenues.map(r => (
-                  <tr key={r.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <tr key={r.id} style={{ borderBottom: '1px solid #e5e7eb', background: editingId === r.id ? '#eff6ff' : 'transparent' }}>
                     <td style={tdStyle}>{r.revenue_date}</td>
                     <td style={tdStyle}>{r.branches?.name}</td>
                     <td style={tdStyle}>{r.network_amount}</td>
@@ -236,6 +221,12 @@ function RevenuesContent() {
                     <td style={tdStyle}>{r.expenses}</td>
                     <td style={tdStyle}>{r.invoices}</td>
                     <td style={{...tdStyle, fontWeight: 'bold', color: '#059669'}}>{r.total_sales}</td>
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                        <button onClick={() => handleEditClick(r)} style={{ padding: '6px 12px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>{T.edit}</button>
+                        <button onClick={() => handleDelete(r.id)} style={{ padding: '6px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>{T.delete}</button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -247,13 +238,7 @@ function RevenuesContent() {
   )
 }
 
-export default function RevenuesPage() {
-  return (
-    <Suspense fallback={<div>جاري التحميل...</div>}>
-      <RevenuesContent />
-    </Suspense>
-  )
-}
+export default function RevenuesPage() { return <Suspense fallback={<div>جاري التحميل...</div>}><RevenuesContent /></Suspense> }
 
 const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#374151' }
 const inputStyle: React.CSSProperties = { width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }
