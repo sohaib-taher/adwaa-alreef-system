@@ -205,7 +205,9 @@ function DailyReceiptsContent() {
                 <td style={tdStyle}>
                   <input type="text" placeholder="اكتب الصنف..." value={row.product_name} onChange={(e) => handleRowChange(index, 'product_name', e.target.value)} style={inputStyle} />
                 </td>
-                <td style={tdStyle}><input type="number" value={row.total_qty || ''} onChange={(e) => handleRowChange(index, 'total_qty', Number(e.target.value))} style={inputStyle} /></td>
+               <td style={{...tdStyle, background: '#f9fafb', fontWeight: 'bold'}}>
+                  {(Number(row.dakhil_qty) || 0) + (Number(row.nasiriya_qty) || 0) + (Number(row.taj_qty) || 0) + (Number(row.fourth_qty) || 0)}
+                </td>
                 <td style={tdStyle}><input type="number" value={row.price || ''} onChange={(e) => handleRowChange(index, 'price', Number(e.target.value))} style={inputStyle} /></td>
                 <td style={{...tdStyle, fontWeight: 'bold'}}>{totalPrice.toFixed(2)}</td>
                 
@@ -228,7 +230,9 @@ function DailyReceiptsContent() {
         <tfoot>
           <tr style={{ background: '#f3f4f6', fontWeight: 'bold', color: '#111827', fontSize: '14px' }}>
             <td colSpan={3} style={{ padding: '10px', textAlign: 'center' }}>{T.footerTotal}</td>
-            <td style={tdStyle}>{totals.total_qty}</td>
+            <td style={{...tdStyle, background: '#f9fafb'}}>
+              {(totals.dakhil_qty || 0) + (totals.nasiriya_qty || 0) + (totals.taj_qty || 0) + (totals.fourth_qty || 0)}
+            </td>
             <td style={tdStyle}>-</td>
             <td style={tdStyle}>{totals.total_price.toFixed(2)}</td>
             <td style={tdStyle}>{totals.dakhil_qty}</td>
